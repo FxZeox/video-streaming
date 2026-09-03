@@ -7,13 +7,13 @@ function validate(input: unknown): PortfolioProject {
   if (!input || typeof input !== "object") throw new Error("Invalid project data.");
   const item = input as Partial<PortfolioProject>;
   if (!item.id || !item.title || !item.slug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.slug)) throw new Error("ID, title, and a URL-safe slug are required.");
-  if (!item.thumbnail || !item.sources?.[0]?.src) throw new Error("Thumbnail and video URL are required.");
+  // allow saving drafts without thumbnail/poster/video URL — these can be uploaded later via the admin UI
   return {
     id: String(item.id).slice(0, 80), slug: item.slug, title: String(item.title).slice(0, 140), eyebrow: String(item.eyebrow ?? "Project").slice(0, 80),
-    description: String(item.description ?? "").slice(0, 400), longDescription: String(item.longDescription ?? "").slice(0, 3000), thumbnail: String(item.thumbnail),
+    description: String(item.description ?? "").slice(0, 400), longDescription: String(item.longDescription ?? "").slice(0, 3000), thumbnail: String(item.thumbnail ?? ""),
     // allow poster to fall back to thumbnail if not provided
-    poster: String(item.poster ?? item.thumbnail),
-    sources: item.sources.map((source) => ({ src: String(source.src), type: String(source.type ?? "video/mp4"), label: String(source.label ?? "Original") })),
+    poster: String(item.poster ?? item.thumbnail ?? ""),
+    sources: Array.isArray(item.sources) ? item.sources.map((source) => ({ src: String(source?.src ?? ""), type: String(source?.type ?? "video/mp4"), label: String(source?.label ?? "Original") })) : [{ src: "", type: "video/mp4", label: "Original" }],
     duration: String(item.duration ?? "00:00").slice(0, 20), year: Number(item.year) || new Date().getFullYear(), role: String(item.role ?? "Video editing").slice(0, 200),
     tools: Array.isArray(item.tools) ? item.tools.map(String).slice(0, 20) : [], featured: Boolean(item.featured), imagePosition: item.imagePosition ? String(item.imagePosition) : undefined,
     category: item.category ? String(item.category).slice(0, 80) : undefined,
