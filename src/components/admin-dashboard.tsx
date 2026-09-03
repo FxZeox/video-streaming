@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { PortfolioProject } from "@/data/projects";
@@ -85,6 +85,9 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
       }
       if (!response.ok) return { ok: false, message: result.error ?? "Could not save the project.", fieldErrors: result.fieldErrors };
       setProjects((items) => exists ? items.map((item) => item.id === result.id ? result : item) : [result, ...items]);
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(`admin-project-draft:${project.id}`);
+      }
       setSelected(null);
       setMessage("Project saved. It is now visible on the website.");
       router.refresh();
@@ -168,13 +171,36 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
 }
 
 function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: PortfolioProject; busy: boolean; onClose: () => void; onSave: (project: PortfolioProject) => Promise<SaveResult>; onDelete?: (project: PortfolioProject) => Promise<void> }) {
-  const [draft, setDraft] = useState(project);
+  const draftKey = `admin-project-draft:${project.id}`;
+  const [draft, setDraft] = useState<PortfolioProject>(() => {
+    if (typeof window === "undefined") return project;
+    const saved = window.localStorage.getItem(draftKey);
+    if (!saved) return project;
+    try {
+      const parsed = JSON.parse(saved) as Partial<PortfolioProject>;
+      return { ...project, ...parsed, sources: Array.isArray(parsed.sources) && parsed.sources.length ? parsed.sources : project.sources, tools: Array.isArray(parsed.tools) ? parsed.tools : project.tools };
+    } catch {
+      return project;
+    }
+  });
   const [uploading, setUploading] = useState(false);
   const [formMessage, setFormMessage] = useState("");
   const [errors, setErrors] = useState<ProjectFieldErrors>({});
   const update = <K extends keyof PortfolioProject>(key: K, value: PortfolioProject[K]) => setDraft((item) => ({ ...item, [key]: value }));
   const clearError = (field: ProjectField) => setErrors((current) => ({ ...current, [field]: undefined }));
   const autoSlug = (title: string) => title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(draftKey, JSON.stringify(draft));
+    }
+  }, [draft, draftKey]);
+
+  useEffect(() => () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(draftKey);
+    }
+  }, [draftKey]);
 
   function detectDuration(file: File) {
     return new Promise<string>((resolve) => {
@@ -217,7 +243,7 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
     setFormMessage("");
     clearError(kind === "thumbnail" ? "thumbnail" : "videoUrl");
     try {
-      const detectedDuration = kind === "video" ? await detectDuration(file) : "";
+      const detectedDuration = kind === "video" && file.size < 25 * 1024 * 1024 ? await detectDuration(file) : "";
       const formData = new FormData();
       formData.append("file", file);
       const response = await fetch("/api/admin/upload", { method: "POST", body: formData });
