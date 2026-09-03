@@ -5,8 +5,8 @@ export const siteConfig = {
   description:
     "Independent video editor crafting films with rhythm, feeling, and a point of view.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  socials: [],
-} as const;
+  socials: [] as { label: string; href: string }[],
+};
 
 export function videoAsset(path: string) {
   const base = process.env.NEXT_PUBLIC_VIDEO_BASE_URL?.replace(/\/$/, "");
