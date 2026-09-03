@@ -76,7 +76,7 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
         {!projects.length && <div className="admin-empty">No projects yet. Add your first video project.</div>}
       </section>
     </div>
-    {selected && <ProjectEditor project={selected} busy={busy} onClose={() => setSelected(null)} onSave={save} onDelete={projects.some((item) => item.id === selected.id) ? remove : undefined} />}
+    {selected && <ProjectEditor project={selected} busy={busy} onClose={() => setSelected(null)} onSave={save} onDelete={projects.some((item) => item.id === selected.id) ? remove : undefined} onSetBusy={setBusy} onSetMessage={setMessage} />}
   </main>;
 }
 
