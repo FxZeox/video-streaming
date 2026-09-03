@@ -110,6 +110,7 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete, onSetBusy, on
             const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
             const json = await res.json();
             if (res.ok) update("thumbnail", json.path);
+              if (res.ok) update("poster", json.path);
             else (onSetMessage ?? setLocalMessage)(json.error ?? "Upload failed");
           } catch (err) { (onSetMessage ?? setLocalMessage)("Upload failed"); }
           finally { (onSetBusy ?? setUploading)(false); }
@@ -121,6 +122,7 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete, onSetBusy, on
             const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
             const json = await res.json();
             if (res.ok) update("sources", [{ ...draft.sources[0], src: json.path, type: file.type }]);
+              // if poster absent, set poster to video thumbnail placeholder (no-op here)
             else (onSetMessage ?? setLocalMessage)(json.error ?? "Upload failed");
           } catch (err) { (onSetMessage ?? setLocalMessage)("Upload failed"); }
           finally { (onSetBusy ?? setUploading)(false); }
