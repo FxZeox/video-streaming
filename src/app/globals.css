@@ -2,6 +2,11 @@
 
 :root { --ink:#0a0a09; --panel:#11110f; --panel-2:#171714; --paper:#f2f0e8; --muted:#aaa99f; --line:rgba(242,240,232,.14); --accent:#d8ff4f; --radius:6px; }
 * { box-sizing:border-box; }
+@media (max-width:640px) {
+  .mobile-menu { position:static; top:auto; left:auto; right:auto; border-bottom:0; padding:8px 12px; }
+  .mobile-menu nav { flex-direction:row !important; flex-wrap:wrap; justify-content:center; gap:8px; }
+  .mobile-menu nav a, .mobile-menu nav button { font-size:13px; padding:8px 10px; }
+}
 html { scroll-behavior:smooth; background:var(--ink); }
 body { margin:0; background:var(--ink); color:var(--paper); font-family:var(--font-geist-sans),Arial,sans-serif; font-size:16px; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
 ::selection { background:var(--accent); color:var(--ink); }
