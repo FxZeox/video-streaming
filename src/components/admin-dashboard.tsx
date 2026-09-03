@@ -57,13 +57,14 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
       <section className="admin-content"><div className="admin-title"><div><p className="admin-kicker">Portfolio library</p><h1>Projects</h1><span>Manage the work displayed across your portfolio.</span></div><button className="admin-button" onClick={() => { setSelected(emptyProject()); setMessage(""); }}>+ Add project</button></div>
         {message && <div className={`admin-message ${message.includes("saved") ? "success" : ""}`}><Check />{message}<button onClick={() => setMessage("")}><Close /></button></div>}
         <div className="admin-projects">
-          <div className="admin-table-head"><span>Project</span><span>Video source</span><span>Year</span><span>Status</span><span /></div>
+          <div className="admin-table-head"><span>Project</span><span>Category</span><span>Video source</span><span>Year</span><span>Status</span><span /></div>
           {projects.map((project) => {
             const thumbStyle = project.thumbnail ? { backgroundImage: `url("${String(project.thumbnail).replace(/"/g, "%22")}")` } : { backgroundColor: "#222" };
             return (
               <article key={project.id}>
                 <div className={`admin-thumb ${project.thumbnail ? "" : "admin-thumb--empty"}`} style={thumbStyle} />
                 <div><strong>{project.title || "Untitled project"}</strong><small>/{project.slug || "untitled"}</small></div>
+                <div><small>{project.category ?? "—"}</small></div>
                 <div className="admin-source"><span>{project.sources?.[0]?.src || "No video source"}</span></div>
                 <span>{project.year || new Date().getFullYear()}</span>
                 <span className={project.featured ? "status-featured" : "status-live"}>{project.featured ? "Featured" : "Live"}</span>
@@ -111,22 +112,19 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
           <datalist id="category-options">{categories.map((c) => <option key={c.slug} value={c.label} />)}</datalist>
         </label>
 
-        <div className="admin-form-section"><h3>Media</h3><p>Use a full HTTPS URL from your server, or a local path beginning with <code>/</code>.</p></div>
-        <Field label="Thumbnail URL (paste external)" value={draft.thumbnail} onChange={(value) => update("thumbnail", value)} placeholder="https://example.com/thumbnail.webp" wide required />
-        <label className="admin-field"><span>Or pick server image</span>
-          <select value={draft.thumbnail ?? ""} onChange={(e) => update("thumbnail", e.target.value)}>
-            <option value="">Choose an image hosted on this server</option>
-            {serverImages.map((img) => <option key={img} value={img}>{img.replace(/^\/images\//, "")}</option>)}
-          </select>
-        </label>
-        <Field label="Poster URL" value={draft.poster} onChange={(value) => update("poster", value)} wide required />
-        <label className="admin-field"><span>Or pick server poster</span>
-          <select value={draft.poster ?? ""} onChange={(e) => update("poster", e.target.value)}>
-            <option value="">Choose an image hosted on this server</option>
-            {serverImages.map((img) => <option key={img} value={img}>{img.replace(/^\/images\//, "")}</option>)}
-          </select>
-        </label>
-        <Field label="Video URL" value={draft.sources[0]?.src ?? ""} onChange={(value) => update("sources", [{ ...draft.sources[0], src: value }])} placeholder="https://video.example.com/videos/project.mp4" wide required />
+        <div className="admin-form-section"><h3>Media</h3><p>Upload thumbnail, poster, and video files. Files will be stored on Cloudinary.</p></div>
+        <label className="admin-field"><span>Upload thumbnail</span><input type="file" accept="image/*" onChange={async (e) => {
+          const file = e.currentTarget.files?.[0]; if (!file) return; setBusy(true);
+          try { const fd = new FormData(); fd.append("file", file); const res = await fetch("/api/admin/upload", { method: "POST", body: fd }); const json = await res.json(); if (res.ok) update("thumbnail", json.path); else setMessage(json.error ?? "Upload failed"); } catch (err) { setMessage("Upload failed"); } finally { setBusy(false); }
+        }} /></label>
+        <label className="admin-field"><span>Upload poster</span><input type="file" accept="image/*" onChange={async (e) => {
+          const file = e.currentTarget.files?.[0]; if (!file) return; setBusy(true);
+          try { const fd = new FormData(); fd.append("file", file); const res = await fetch("/api/admin/upload", { method: "POST", body: fd }); const json = await res.json(); if (res.ok) update("poster", json.path); else setMessage(json.error ?? "Upload failed"); } catch (err) { setMessage("Upload failed"); } finally { setBusy(false); }
+        }} /></label>
+        <label className="admin-field wide"><span>Upload video</span><input type="file" accept="video/*" onChange={async (e) => {
+          const file = e.currentTarget.files?.[0]; if (!file) return; setBusy(true);
+          try { const fd = new FormData(); fd.append("file", file); const res = await fetch("/api/admin/upload", { method: "POST", body: fd }); const json = await res.json(); if (res.ok) update("sources", [{ ...draft.sources[0], src: json.path, type: file.type }]); else setMessage(json.error ?? "Upload failed"); } catch (err) { setMessage("Upload failed"); } finally { setBusy(false); }
+        }} /></label>
         <Field label="Video MIME type" value={draft.sources[0]?.type ?? "video/mp4"} onChange={(value) => update("sources", [{ ...draft.sources[0], type: value }])} />
         <Field label="Quality label" value={draft.sources[0]?.label ?? "1080p"} onChange={(value) => update("sources", [{ ...draft.sources[0], label: value }])} />
         <Field label="Tools (comma separated)" value={(draft.tools ?? []).join(", ")} onChange={(value) => update("tools", value.split(",").map((item) => item.trim()).filter(Boolean))} wide />
