@@ -10,7 +10,7 @@ function validate(input: unknown): PortfolioProject {
   if (!item.thumbnail || !item.sources?.[0]?.src) throw new Error("Thumbnail and video URL are required.");
   return {
     id: String(item.id).slice(0, 80), slug: item.slug, title: String(item.title).slice(0, 140), eyebrow: String(item.eyebrow ?? "Project").slice(0, 80),
-    description: String(item.description ?? "").slice(0, 400), longDescription: String(item.longDescription ?? "").slice(0, 3000), thumbnail: String(item.thumbnail), poster: String(item.poster),
+    description: String(item.description ?? "").slice(0, 400), longDescription: String(item.longDescription ?? "").slice(0, 3000), thumbnail: String(item.thumbnail),
     // allow poster to fall back to thumbnail if not provided
     poster: String(item.poster ?? item.thumbnail),
     sources: item.sources.map((source) => ({ src: String(source.src), type: String(source.type ?? "video/mp4"), label: String(source.label ?? "Original") })),
