@@ -4,7 +4,9 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { projects as seedProjects, type PortfolioProject } from "@/data/projects";
 
-const dataDirectory = path.join(process.cwd(), "data");
+const dataDirectory = process.env.ADMIN_DATA_DIR
+  ? path.resolve(process.env.ADMIN_DATA_DIR)
+  : path.join(process.env.TMPDIR || process.env.TEMP || "/tmp", "video-streaming-data");
 const dataFile = path.join(dataDirectory, "admin-projects.json");
 
 export async function getProjects(): Promise<PortfolioProject[]> {

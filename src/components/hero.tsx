@@ -5,7 +5,7 @@ import { ArrowRight, Play } from "@/components/icons";
 export function Hero() {
   return (
     <section className="hero">
-      <Image className="hero-image" src="/images/edit-suite.webp" alt="Professional editor working in a dark post-production studio" fill priority sizes="100vw" />
+      <Image className="hero-image" src="/images/profile-portrait.png" alt="Evol Visuals profile portrait" fill priority sizes="100vw" />
       <div className="hero-overlay" />
       <div className="hero-grain" />
       <div className="container hero-content">

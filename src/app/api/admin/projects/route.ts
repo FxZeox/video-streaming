@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getProjects, saveProjects } from "@/lib/project-store";
+import { deleteCloudinaryAsset } from "@/lib/cloudinary";
 import type { PortfolioProject } from "@/data/projects";
 
 function validate(input: unknown): PortfolioProject {
@@ -65,13 +66,27 @@ export async function DELETE(request: Request) {
   const targetId = String(payload.id ?? "").trim();
   const targetSlug = String(payload.slug ?? "").trim();
   const projects = await getProjects();
+  const removed = projects.find((project) => {
+    const projectId = String(project.id ?? "");
+    const projectSlug = String(project.slug ?? "");
+    return projectId === targetId || projectSlug === targetId || projectSlug === targetSlug;
+  });
+
+  if (!removed) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+
   const next = projects.filter((project) => {
     const projectId = String(project.id ?? "");
     const projectSlug = String(project.slug ?? "");
     return projectId !== targetId && projectSlug !== targetId && projectSlug !== targetSlug;
   });
 
-  if (next.length === projects.length) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+  const urlsToDelete = [removed.thumbnail, removed.poster, ...(removed.sources ?? []).map((source) => source.src)];
+  for (const url of urlsToDelete) {
+    if (url && /cloudinary\.com|res\.cloudinary\.com/i.test(url)) {
+      await deleteCloudinaryAsset(url);
+    }
+  }
+
   await saveProjects(next);
   return NextResponse.json({ ok: true });
 }
