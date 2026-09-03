@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PageHero } from "@/components/sections";
-import { VideoGrid } from "@/components/video-card";
+import WorkList from "@/components/work-list";
 import { getProjects } from "@/lib/project-store";
 
 export const metadata: Metadata = { title: "Work", description: "A selection of video editing and post-production projects.", alternates: { canonical: "/work" } };
@@ -15,7 +15,7 @@ export default async function WorkPage() {
       <section className="section work-archive">
         <div className="container">
           <div className="archive-label"><span>All projects</span><span>{projects.length.toString().padStart(2, "0")} films</span></div>
-          <VideoGrid projects={projects} />
+          <WorkList projects={projects} />
         </div>
       </section>
     </main>
