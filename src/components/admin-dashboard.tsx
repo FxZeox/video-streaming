@@ -29,6 +29,24 @@ const emptyProject = (): PortfolioProject => ({
   category: "",
 });
 
+function restoreDraftProject(projectId: string): PortfolioProject | null {
+  if (typeof window === "undefined") return null;
+  const saved = window.localStorage.getItem(`admin-project-draft:${projectId}`);
+  if (!saved) return null;
+  try {
+    const parsed = JSON.parse(saved) as Partial<PortfolioProject>;
+    return {
+      ...emptyProject(),
+      ...parsed,
+      id: parsed.id ?? projectId,
+      sources: Array.isArray(parsed.sources) && parsed.sources.length ? parsed.sources : [{ src: "", type: "video/mp4", label: "1080p" }],
+      tools: Array.isArray(parsed.tools) ? parsed.tools : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function AdminDashboard({ authenticated, configured, initialProjects }: { authenticated: boolean; configured: boolean; initialProjects: PortfolioProject[] }) {
   const router = useRouter();
   const [loggedIn, setLoggedIn] = useState(authenticated);
@@ -87,6 +105,7 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
       setProjects((items) => exists ? items.map((item) => item.id === result.id ? result : item) : [result, ...items]);
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(`admin-project-draft:${project.id}`);
+        window.localStorage.removeItem("admin-project-draft:new-project");
       }
       setSelected(null);
       setMessage("Project saved. It is now visible on the website.");
@@ -96,6 +115,12 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
       return { ok: false, message: "Could not connect to the server. Your project was not saved." };
     } finally {
       setBusy(false);
+    }
+  }
+
+  function clearDraft(projectId: string) {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(`admin-project-draft:${projectId}`);
     }
   }
 
@@ -113,6 +138,7 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
       if (response.status === 401) { setLoggedIn(false); return; }
       if (!response.ok) { setMessage(result.error ?? "Could not delete the project."); return; }
       setProjects((items) => items.filter((item) => item.id !== project.id));
+      clearDraft(project.id);
       setSelected(null);
       setMessage("Project deleted from the website.");
       router.refresh();
@@ -142,7 +168,14 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
     <div className="admin-body">
       <aside className="admin-sidebar"><p>Content</p><button className="active"><Play /> Projects <span>{projects.length}</span></button></aside>
       <section className="admin-content">
-        <div className="admin-title"><div><p className="admin-kicker">Portfolio library</p><h1>Projects</h1><span>Manage the work displayed across your portfolio.</span></div><button className="admin-button" onClick={() => { setSelected(emptyProject()); setMessage(""); }}>+ Add project</button></div>
+        <div className="admin-title"><div><p className="admin-kicker">Portfolio library</p><h1>Projects</h1><span>Manage the work displayed across your portfolio.</span></div><button className="admin-button" onClick={() => {
+          const draft = typeof window !== "undefined" ? restoreDraftProject("new-project") ?? emptyProject() : emptyProject();
+          if (draft.id !== "new-project") {
+            draft.id = "new-project";
+          }
+          setSelected(draft);
+          setMessage("");
+        }}>+ Add project</button></div>
         <section className="admin-guide" aria-labelledby="publishing-guide-title">
           <div className="admin-guide-heading"><div><span>Quick guide</span><h2 id="publishing-guide-title">Publishing a project</h2></div><p>Complete these steps in order. Required fields are marked with an asterisk.</p></div>
           <ol>
@@ -184,7 +217,18 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
     }
   });
   const [uploading, setUploading] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [formMessage, setFormMessage] = useState("");
+  const handleClose = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(draftKey, JSON.stringify(draft));
+      if (project.id === "new-project" || draft.id === "new-project") {
+        window.localStorage.setItem("admin-project-draft:new-project", JSON.stringify(draft));
+      }
+    }
+    onClose();
+  };
   const [errors, setErrors] = useState<ProjectFieldErrors>({});
   const update = <K extends keyof PortfolioProject>(key: K, value: PortfolioProject[K]) => setDraft((item) => ({ ...item, [key]: value }));
   const clearError = (field: ProjectField) => setErrors((current) => ({ ...current, [field]: undefined }));
@@ -193,14 +237,11 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
   useEffect(() => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(draftKey, JSON.stringify(draft));
+      if (project.id === "new-project" || draft.id === "new-project") {
+        window.localStorage.setItem("admin-project-draft:new-project", JSON.stringify(draft));
+      }
     }
-  }, [draft, draftKey]);
-
-  useEffect(() => () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(draftKey);
-    }
-  }, [draftKey]);
+  }, [draft, draftKey, project.id]);
 
   function detectDuration(file: File) {
     return new Promise<string>((resolve) => {
@@ -222,12 +263,13 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setFormMessage("");
     const validation = validateProject(draft);
     if (!validation.success) {
       setErrors(validation.errors);
       setFormMessage("Please complete all required fields before saving.");
-      requestAnimationFrame(() => event.currentTarget.querySelector<HTMLElement>("[aria-invalid='true']")?.focus());
+      requestAnimationFrame(() => form?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus());
       return;
     }
     setErrors({});
@@ -240,34 +282,77 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
 
   async function upload(file: File, kind: "thumbnail" | "video") {
     setUploading(true);
+    setUploadingVideo(kind === "video");
+    setUploadProgress(0);
     setFormMessage("");
     clearError(kind === "thumbnail" ? "thumbnail" : "videoUrl");
+
     try {
-      const detectedDuration = kind === "video" && file.size < 25 * 1024 * 1024 ? await detectDuration(file) : "";
+      const cloudConfigResponse = await fetch("/api/admin/upload", { method: "GET" });
+      const cloudConfig = await cloudConfigResponse.json();
+      if (!cloudConfigResponse.ok) throw new Error(cloudConfig.error ?? "Upload configuration is unavailable.");
+
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetch("/api/admin/upload", { method: "POST", body: formData });
-      const result = await response.json();
-      if (!response.ok) return setFormMessage(result.error ?? "Upload failed.");
-      if (kind === "thumbnail") {
-        update("thumbnail", result.path);
-        update("poster", result.path);
+      if (cloudConfig.uploadPreset) {
+        formData.append("upload_preset", cloudConfig.uploadPreset);
       } else {
-        update("sources", [{ ...draft.sources?.[0], src: result.path, type: file.type || "video/mp4", label: draft.sources?.[0]?.label || "1080p" }]);
-        if (detectedDuration) update("duration", detectedDuration);
+        formData.append("api_key", cloudConfig.apiKey);
+        formData.append("timestamp", String(cloudConfig.timestamp));
+        formData.append("signature", cloudConfig.signature);
       }
-    } catch {
-      setFormMessage("Upload failed because the server could not be reached.");
+
+      if (kind === "thumbnail") {
+        const response = await fetch(cloudConfig.url, { method: "POST", body: formData });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result?.error?.message ?? "Upload failed.");
+        update("thumbnail", result.secure_url ?? result.url);
+        update("poster", result.secure_url ?? result.url);
+        return;
+      }
+
+      const detectedDuration = file.size < 25 * 1024 * 1024 ? await detectDuration(file) : "";
+      const result = await new Promise<{ secure_url?: string; url?: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", cloudConfig.url);
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable || !event.total) return;
+          const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+          setUploadProgress(percent);
+        };
+        xhr.onload = () => {
+          try {
+            const payload = JSON.parse(xhr.responseText || "{}") as { secure_url?: string; url?: string; error?: { message?: string } };
+            if (xhr.status >= 200 && xhr.status < 300) {
+              setUploadProgress(100);
+              return resolve(payload);
+            }
+            reject(new Error(payload?.error?.message ?? "Upload failed."));
+          } catch {
+            reject(new Error("Upload failed."));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Upload failed because the server could not be reached."));
+        xhr.send(formData);
+      });
+
+      const url = result.secure_url ?? result.url ?? "";
+      update("sources", [{ ...draft.sources?.[0], src: url, type: file.type || "video/mp4", label: draft.sources?.[0]?.label || "1080p" }]);
+      if (detectedDuration) update("duration", detectedDuration);
+    } catch (error) {
+      setFormMessage(error instanceof Error ? error.message : "Upload failed because the server could not be reached.");
     } finally {
       setUploading(false);
+      setUploadingVideo(false);
+      setTimeout(() => setUploadProgress(0), 600);
     }
   }
 
   const source = draft.sources?.[0] ?? { src: "", type: "video/mp4", label: "1080p" };
   return <div className="admin-modal" role="dialog" aria-modal="true" aria-label="Project editor">
-    <button className="admin-backdrop" onClick={onClose} aria-label="Close editor" />
+    <button className="admin-backdrop" onClick={handleClose} aria-label="Close editor" />
     <form onSubmit={submit} noValidate>
-      <header><div><p className="admin-kicker">{onDelete ? "Edit project" : "New project"}</p><h2>{draft.title || "Untitled project"}</h2></div><button type="button" onClick={onClose} aria-label="Close"><Close /></button></header>
+      <header><div><p className="admin-kicker">{onDelete ? "Edit project" : "New project"}</p><h2>{draft.title || "Untitled project"}</h2></div><button type="button" onClick={handleClose} aria-label="Close"><Close /></button></header>
       <div className="admin-form-body"><div className="admin-form-grid">
         {formMessage && <div className="admin-form-summary" role="alert">{formMessage}</div>}
         <Field name="title" label="Project title *" value={draft.title} error={errors.title} onChange={(value) => { update("title", value); clearError("title"); if (!onDelete) { update("slug", autoSlug(value)); clearError("slug"); } }} />
@@ -279,13 +364,13 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
         <label className={`admin-field ${errors.category ? "has-error" : ""}`}><span>Category *</span><input list="category-options" value={draft.category ?? ""} aria-invalid={Boolean(errors.category)} onChange={(event) => { update("category", event.target.value); clearError("category"); }} placeholder="Select or type a category" /><datalist id="category-options">{categories.filter((item) => item.slug !== "all").map((item) => <option key={item.slug} value={item.label} />)}</datalist>{errors.category && <small className="admin-field-error">{errors.category}</small>}</label>
 
         <div className="admin-form-section"><h3>Media</h3><p>Upload the project thumbnail and video. Duration is detected automatically from the video file.</p></div>
-        <label className={`admin-field wide ${errors.thumbnail ? "has-error" : ""}`}><span>Thumbnail image *</span><input disabled={busy || uploading} type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "thumbnail"); }} />{draft.thumbnail && <small className="admin-uploaded">✓ Thumbnail uploaded</small>}{errors.thumbnail && <small className="admin-field-error">{errors.thumbnail}</small>}</label>
-        <label className={`admin-field wide ${errors.videoUrl ? "has-error" : ""}`}><span>Video file *</span><input disabled={busy || uploading} type="file" accept="video/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "video"); }} />{source.src && <small className="admin-uploaded">✓ Video source added</small>}{errors.videoUrl && <small className="admin-field-error">{errors.videoUrl}</small>}</label>
+        <label className={`admin-field wide ${errors.thumbnail ? "has-error" : ""}`}><span>Thumbnail image *</span><input disabled={busy || uploading} type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "thumbnail"); }} />{uploading && !uploadingVideo && <small className="admin-uploaded">Uploading image…</small>}{draft.thumbnail && !uploading && <small className="admin-uploaded">✓ Thumbnail uploaded</small>}{errors.thumbnail && <small className="admin-field-error">{errors.thumbnail}</small>}</label>
+        <label className={`admin-field wide ${errors.videoUrl ? "has-error" : ""}`}><span>Video file *</span><input disabled={busy || uploading} type="file" accept="video/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "video"); }} />{uploadingVideo && <small className="admin-uploaded">Uploading {uploadProgress}%</small>}{source.src && !uploading && <small className="admin-uploaded">✓ Video source added</small>}{errors.videoUrl && <small className="admin-field-error">{errors.videoUrl}</small>}</label>
         <Field label="Video MIME type" value={source.type ?? "video/mp4"} onChange={(value) => update("sources", [{ ...source, type: value }])} />
         <Field label="Quality label" value={source.label ?? "1080p"} onChange={(value) => update("sources", [{ ...source, label: value }])} />
         <label className="admin-check"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => update("featured", event.target.checked)} /><span><strong>Featured project</strong><small>Show this project in Selected Work on the homepage.</small></span></label>
       </div></div>
-      <footer>{onDelete ? <button type="button" className="admin-delete" disabled={busy || uploading} onClick={() => void onDelete(draft)}>Delete project</button> : <span />}<div><button type="button" className="admin-cancel" onClick={onClose}>Cancel</button><button className="admin-button" disabled={busy || uploading}>{uploading ? "Uploading…" : busy ? "Saving…" : "Save project"}</button></div></footer>
+      <footer>{onDelete ? <button type="button" className="admin-delete" disabled={busy || uploading} onClick={() => void onDelete(draft)}>Delete project</button> : <span />}<div><button type="button" className="admin-cancel" onClick={handleClose}>Cancel</button><button className="admin-button" disabled={busy || uploading}>{uploading ? (uploadingVideo ? `Uploading ${uploadProgress}%…` : "Uploading…") : busy ? "Saving…" : "Save project"}</button></div></footer>
     </form>
   </div>;
 }

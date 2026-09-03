@@ -1,1 +1,25 @@
-[]
+[
+  {
+    "id": "new-project",
+    "slug": "kini",
+    "title": "kini",
+    "eyebrow": "01",
+    "description": "fkemnvfi",
+    "longDescription": "knmerfikfnmerf",
+    "thumbnail": "https://res.cloudinary.com/vn2yo1ie/image/upload/v1788479545/mxhhmdkibn19pkjz07jo.jpg",
+    "poster": "https://res.cloudinary.com/vn2yo1ie/image/upload/v1788479545/mxhhmdkibn19pkjz07jo.jpg",
+    "sources": [
+      {
+        "src": "https://res.cloudinary.com/vn2yo1ie/video/upload/v1788479836/wnh8kodkn680ob0l4g98.mp4",
+        "type": "video/mp4",
+        "label": "1080p"
+      }
+    ],
+    "duration": "00:00",
+    "year": 2026,
+    "role": "Video editing",
+    "tools": [],
+    "featured": true,
+    "category": "SAAS Animations"
+  }
+]
