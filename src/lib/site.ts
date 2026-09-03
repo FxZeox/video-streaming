@@ -5,6 +5,8 @@ export const siteConfig = {
   description:
     "Independent video editor crafting films with rhythm, feeling, and a point of view.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://evolvisuals.com",
+  profileImageUrl: process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "",
+  ogImageUrl: process.env.NEXT_PUBLIC_OG_IMAGE_URL ?? process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "",
   socials: [] as { label: string; href: string }[],
 };
 
@@ -19,5 +21,5 @@ export function videoAsset(path: string) {
     return `https://res.cloudinary.com/${cloudName}/video/upload/${path.replace(/^\//, "")}`;
   }
 
-  return path.startsWith("http") ? path : `/${path.replace(/^\//, "")}`;
+  return path.startsWith("http") ? path : "";
 }

@@ -1,11 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Play } from "@/components/icons";
+import { siteConfig } from "@/lib/site";
 
 export function Hero() {
+  const profileImage = siteConfig.profileImageUrl;
+
   return (
     <section className="hero">
-      <Image className="hero-image" src="/images/profile-portrait.png" alt="Evol Visuals profile portrait" fill priority sizes="100vw" />
+      {profileImage ? (
+        <Image className="hero-image" src={profileImage} alt="Evol Visuals profile portrait" fill priority sizes="100vw" />
+      ) : null}
       <div className="hero-overlay" />
       <div className="hero-grain" />
       <div className="container hero-content">
@@ -15,7 +20,7 @@ export function Hero() {
           <p>Professional video editing for creators, brands, and businesses that care about every frame.</p>
           <div className="hero-actions"><Link className="button button-primary" href="/work">View my work <ArrowRight /></Link></div>
         </div>
-        <Link className="showreel-chip" href="/work/after-the-summit"><span className="mini-play"><Play /></span><span><small>Featured project</small>Watch the cut</span></Link>
+        <Link className="showreel-chip" href="/work"><span className="mini-play"><Play /></span><span><small>Featured project</small>View the portfolio</span></Link>
       </div>
       <div className="hero-index"><span>PLAY</span><i /><span>STORY</span><i /><span>FEELING</span></div>
     </section>

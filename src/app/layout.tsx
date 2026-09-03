@@ -20,8 +20,8 @@ export const metadata: Metadata = {
   title: { default: `${siteConfig.name} — Video Editor`, template: `%s — ${siteConfig.name}` },
   description: siteConfig.description,
   alternates: { canonical: "/" },
-  openGraph: { title: `${siteConfig.name} — Video Editor`, description: siteConfig.description, type: "website", images: ["/images/edit-suite.webp"] },
-  twitter: { card: "summary_large_image", title: `${siteConfig.name} — Video Editor`, description: siteConfig.description, images: ["/images/edit-suite.webp"] },
+  openGraph: { title: `${siteConfig.name} — Video Editor`, description: siteConfig.description, type: "website", images: siteConfig.ogImageUrl ? [siteConfig.ogImageUrl] : [] },
+  twitter: { card: "summary_large_image", title: `${siteConfig.name} — Video Editor`, description: siteConfig.description, images: siteConfig.ogImageUrl ? [siteConfig.ogImageUrl] : [] },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
