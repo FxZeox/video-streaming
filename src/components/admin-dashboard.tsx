@@ -90,9 +90,8 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete, onSetBusy, on
   return <div className="admin-modal" role="dialog" aria-modal="true" aria-label="Project editor"><button className="admin-backdrop" onClick={onClose} aria-label="Close editor" /><form onSubmit={(event) => { event.preventDefault(); onSave(draft); }}><header><div><p className="admin-kicker">{onDelete ? "Edit project" : "New project"}</p><h2>{draft.title || "Untitled project"}</h2></div><button type="button" onClick={onClose} aria-label="Close"><Close /></button></header><div className="admin-form-body">
       <div className="admin-form-grid">
         <Field label="Project title" value={draft.title} onChange={(value) => { update("title", value); if (!onDelete) update("slug", autoSlug(value)); }} required />
-        <Field label="URL slug" value={draft.slug} onChange={(value) => update("slug", autoSlug(value))} required />
+        <Field label="URL slug" value={draft.slug} onChange={(value) => update("slug", value)} required />
         <Field label="Type / eyebrow" value={draft.eyebrow} onChange={(value) => update("eyebrow", value)} />
-        <Field label="Duration" value={draft.duration} onChange={(value) => update("duration", value)} placeholder="02:34" />
         <Field label="Year" type="number" value={String(draft.year)} onChange={(value) => update("year", Number(value))} />
         <Field label="Role" value={draft.role} onChange={(value) => update("role", value)} />
         <Field label="Card description" value={draft.description} onChange={(value) => update("description", value)} wide />
