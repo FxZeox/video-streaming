@@ -5,11 +5,7 @@ export const siteConfig = {
   description:
     "Independent video editor crafting films with rhythm, feeling, and a point of view.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  socials: [
-    { label: "Instagram", href: "#" },
-    { label: "LinkedIn", href: "#" },
-    
-  ],
+  socials: [],
 } as const;
 
 export function videoAsset(path: string) {
