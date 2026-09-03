@@ -9,5 +9,15 @@ export const dynamic = "force-dynamic";
 
 export default async function WorkPage() {
   const projects = await getProjects();
-  return <main id="main"><PageHero eyebrow="Selected work · 2024—26" title={<>Stories shaped<br /><em>frame by frame.</em></>} copy="A selection of development projects that shows how rhythm, structure, sound, and detail can turn raw footage into a finished story." /><section className="section work-archive"><div className="container"><div className="archive-label"><span>All projects</span><span>{projects.length.toString().padStart(2, "0")} films</span></div><VideoGrid projects={projects} /></div></section></main>;
+  return (
+    <main id="main">
+      <PageHero eyebrow="Selected work · 2024—26" title={<>Stories shaped<br /><em>frame by frame.</em></>} copy="A selection of development projects that shows how rhythm, structure, sound, and detail can turn raw footage into a finished story." />
+      <section className="section work-archive">
+        <div className="container">
+          <div className="archive-label"><span>All projects</span><span>{projects.length.toString().padStart(2, "0")} films</span></div>
+          <VideoGrid projects={projects} />
+        </div>
+      </section>
+    </main>
+  );
 }

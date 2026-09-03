@@ -22,6 +22,7 @@ export type PortfolioProject = {
   tools: string[];
   featured?: boolean;
   imagePosition?: string;
+  category?: string;
 };
 
 export const projects: PortfolioProject[] = [
@@ -40,6 +41,7 @@ export const projects: PortfolioProject[] = [
     role: "Edit, color & sound design",
     tools: ["Premiere Pro", "After Effects", "DaVinci Resolve"],
     featured: true,
+    category: "Long Form",
   },
   {
     id: "02",
@@ -56,6 +58,7 @@ export const projects: PortfolioProject[] = [
     role: "Edit & motion graphics",
     tools: ["Premiere Pro", "After Effects"],
     featured: true,
+    category: "Long Form",
   },
   {
     id: "03",
@@ -72,6 +75,7 @@ export const projects: PortfolioProject[] = [
     role: "Edit, color & sound design",
     tools: ["DaVinci Resolve", "Audition"],
     featured: true,
+    category: "Long Form",
   },
   {
     id: "04",
@@ -87,6 +91,7 @@ export const projects: PortfolioProject[] = [
     year: 2025,
     role: "Direction & edit",
     tools: ["Premiere Pro", "Photoshop", "Audition"],
+    category: "Documentaries",
   },
   {
     id: "05",
@@ -103,6 +108,7 @@ export const projects: PortfolioProject[] = [
     role: "Offline edit",
     tools: ["Premiere Pro", "After Effects"],
     imagePosition: "70% center",
+    category: "Long Form",
   },
   {
     id: "06",
@@ -119,6 +125,7 @@ export const projects: PortfolioProject[] = [
     role: "Concept, edit & grade",
     tools: ["After Effects", "DaVinci Resolve"],
     imagePosition: "20% center",
+    category: "Other small animations",
   },
 ];
 

@@ -8,7 +8,7 @@ export const siteConfig = {
   socials: [
     { label: "Instagram", href: "#" },
     { label: "LinkedIn", href: "#" },
-    { label: "Behance", href: "#" },
+    
   ],
 } as const;
 

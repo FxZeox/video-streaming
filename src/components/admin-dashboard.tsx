@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import Link from "next/link";
 import type { PortfolioProject } from "@/data/projects";
 import { ArrowRight, Check, Close, Eye, EyeOff, Play } from "@/components/icons";
+import { categories } from "@/data/categories";
 import { siteConfig } from "@/lib/site";
 
 const emptyProject = (): PortfolioProject => ({
@@ -55,7 +56,22 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
     <div className="admin-body"><aside className="admin-sidebar"><p>Content</p><button className="active"><Play /> Projects <span>{projects.length}</span></button></aside>
       <section className="admin-content"><div className="admin-title"><div><p className="admin-kicker">Portfolio library</p><h1>Projects</h1><span>Manage the work displayed across your portfolio.</span></div><button className="admin-button" onClick={() => { setSelected(emptyProject()); setMessage(""); }}>+ Add project</button></div>
         {message && <div className={`admin-message ${message.includes("saved") ? "success" : ""}`}><Check />{message}<button onClick={() => setMessage("")}><Close /></button></div>}
-        <div className="admin-projects"><div className="admin-table-head"><span>Project</span><span>Video source</span><span>Year</span><span>Status</span><span /></div>{projects.map((project) => <article key={project.id}><div className="admin-thumb" style={{ backgroundImage: `url("${project.thumbnail.replace(/"/g, "%22")}")` }} /><div><strong>{project.title}</strong><small>/{project.slug}</small></div><div className="admin-source"><span>{project.sources[0]?.src}</span></div><span>{project.year}</span><span className={project.featured ? "status-featured" : "status-live"}>{project.featured ? "Featured" : "Live"}</span><button onClick={() => { setSelected(structuredClone(project)); setMessage(""); }}>Edit</button></article>)}</div>
+        <div className="admin-projects">
+          <div className="admin-table-head"><span>Project</span><span>Video source</span><span>Year</span><span>Status</span><span /></div>
+          {projects.map((project) => {
+            const thumbStyle = project.thumbnail ? { backgroundImage: `url("${String(project.thumbnail).replace(/"/g, "%22")}")` } : { backgroundColor: "#222" };
+            return (
+              <article key={project.id}>
+                <div className={`admin-thumb ${project.thumbnail ? "" : "admin-thumb--empty"}`} style={thumbStyle} />
+                <div><strong>{project.title || "Untitled project"}</strong><small>/{project.slug || "untitled"}</small></div>
+                <div className="admin-source"><span>{project.sources?.[0]?.src || "No video source"}</span></div>
+                <span>{project.year || new Date().getFullYear()}</span>
+                <span className={project.featured ? "status-featured" : "status-live"}>{project.featured ? "Featured" : "Live"}</span>
+                <button onClick={() => { setSelected(structuredClone(project)); setMessage(""); }}>Edit</button>
+              </article>
+            );
+          })}
+        </div>
         {!projects.length && <div className="admin-empty">No projects yet. Add your first video project.</div>}
       </section>
     </div>
@@ -65,11 +81,55 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
 
 function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: PortfolioProject; busy: boolean; onClose: () => void; onSave: (project: PortfolioProject) => void; onDelete?: (project: PortfolioProject) => void }) {
   const [draft, setDraft] = useState(project);
+  const [serverImages, setServerImages] = useState<string[]>([]);
   const update = <K extends keyof PortfolioProject>(key: K, value: PortfolioProject[K]) => setDraft((item) => ({ ...item, [key]: value }));
   const autoSlug = (title: string) => title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/images");
+        if (!mounted) return;
+        if (res.ok) setServerImages(await res.json());
+      } catch (e) { /* ignore */ }
+    })();
+    return () => { mounted = false; };
+  }, []);
   return <div className="admin-modal" role="dialog" aria-modal="true" aria-label="Project editor"><button className="admin-backdrop" onClick={onClose} aria-label="Close editor" /><form onSubmit={(event) => { event.preventDefault(); onSave(draft); }}><header><div><p className="admin-kicker">{onDelete ? "Edit project" : "New project"}</p><h2>{draft.title || "Untitled project"}</h2></div><button type="button" onClick={onClose} aria-label="Close"><Close /></button></header><div className="admin-form-body">
-    <div className="admin-form-grid"><Field label="Project title" value={draft.title} onChange={(value) => { update("title", value); if (!onDelete) update("slug", autoSlug(value)); }} required /><Field label="URL slug" value={draft.slug} onChange={(value) => update("slug", autoSlug(value))} required /><Field label="Type / eyebrow" value={draft.eyebrow} onChange={(value) => update("eyebrow", value)} /><Field label="Duration" value={draft.duration} onChange={(value) => update("duration", value)} placeholder="02:34" /><Field label="Year" type="number" value={String(draft.year)} onChange={(value) => update("year", Number(value))} /><Field label="Role" value={draft.role} onChange={(value) => update("role", value)} /><Field label="Card description" value={draft.description} onChange={(value) => update("description", value)} wide /><TextField label="Full project description" value={draft.longDescription} onChange={(value) => update("longDescription", value)} />
-      <div className="admin-form-section"><h3>Media</h3><p>Use a full HTTPS URL from your server, or a local path beginning with <code>/</code>.</p></div><Field label="Thumbnail URL" value={draft.thumbnail} onChange={(value) => update("thumbnail", value)} placeholder="https://video.example.com/thumbnails/project.webp" wide required /><Field label="Poster URL" value={draft.poster} onChange={(value) => update("poster", value)} wide required /><Field label="Video URL" value={draft.sources[0]?.src ?? ""} onChange={(value) => update("sources", [{ ...draft.sources[0], src: value }])} placeholder="https://video.example.com/videos/project.mp4" wide required /><Field label="Video MIME type" value={draft.sources[0]?.type ?? "video/mp4"} onChange={(value) => update("sources", [{ ...draft.sources[0], type: value }])} /><Field label="Quality label" value={draft.sources[0]?.label ?? "1080p"} onChange={(value) => update("sources", [{ ...draft.sources[0], label: value }])} /><Field label="Tools (comma separated)" value={(draft.tools ?? []).join(", ")} onChange={(value) => update("tools", value.split(",").map((item) => item.trim()).filter(Boolean))} wide />
+      <div className="admin-form-grid">
+        <Field label="Project title" value={draft.title} onChange={(value) => { update("title", value); if (!onDelete) update("slug", autoSlug(value)); }} required />
+        <Field label="URL slug" value={draft.slug} onChange={(value) => update("slug", autoSlug(value))} required />
+        <Field label="Type / eyebrow" value={draft.eyebrow} onChange={(value) => update("eyebrow", value)} />
+        <Field label="Duration" value={draft.duration} onChange={(value) => update("duration", value)} placeholder="02:34" />
+        <Field label="Year" type="number" value={String(draft.year)} onChange={(value) => update("year", Number(value))} />
+        <Field label="Role" value={draft.role} onChange={(value) => update("role", value)} />
+        <Field label="Card description" value={draft.description} onChange={(value) => update("description", value)} wide />
+        <TextField label="Full project description" value={draft.longDescription} onChange={(value) => update("longDescription", value)} />
+
+        <label className="admin-field"><span>Category</span>
+          <input list="category-options" value={draft.category ?? ""} onChange={(e) => update("category", e.target.value)} placeholder="Select or type a category" />
+          <datalist id="category-options">{categories.map((c) => <option key={c.slug} value={c.label} />)}</datalist>
+        </label>
+
+        <div className="admin-form-section"><h3>Media</h3><p>Use a full HTTPS URL from your server, or a local path beginning with <code>/</code>.</p></div>
+        <Field label="Thumbnail URL (paste external)" value={draft.thumbnail} onChange={(value) => update("thumbnail", value)} placeholder="https://example.com/thumbnail.webp" wide required />
+        <label className="admin-field"><span>Or pick server image</span>
+          <select value={draft.thumbnail ?? ""} onChange={(e) => update("thumbnail", e.target.value)}>
+            <option value="">Choose an image hosted on this server</option>
+            {serverImages.map((img) => <option key={img} value={img}>{img.replace(/^\/images\//, "")}</option>)}
+          </select>
+        </label>
+        <Field label="Poster URL" value={draft.poster} onChange={(value) => update("poster", value)} wide required />
+        <label className="admin-field"><span>Or pick server poster</span>
+          <select value={draft.poster ?? ""} onChange={(e) => update("poster", e.target.value)}>
+            <option value="">Choose an image hosted on this server</option>
+            {serverImages.map((img) => <option key={img} value={img}>{img.replace(/^\/images\//, "")}</option>)}
+          </select>
+        </label>
+        <Field label="Video URL" value={draft.sources[0]?.src ?? ""} onChange={(value) => update("sources", [{ ...draft.sources[0], src: value }])} placeholder="https://video.example.com/videos/project.mp4" wide required />
+        <Field label="Video MIME type" value={draft.sources[0]?.type ?? "video/mp4"} onChange={(value) => update("sources", [{ ...draft.sources[0], type: value }])} />
+        <Field label="Quality label" value={draft.sources[0]?.label ?? "1080p"} onChange={(value) => update("sources", [{ ...draft.sources[0], label: value }])} />
+        <Field label="Tools (comma separated)" value={(draft.tools ?? []).join(", ")} onChange={(value) => update("tools", value.split(",").map((item) => item.trim()).filter(Boolean))} wide />
       <label className="admin-check"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => update("featured", event.target.checked)} /><span><strong>Featured project</strong><small>Show this project in Selected Work on the homepage.</small></span></label>
     </div></div><footer>{onDelete ? <button type="button" className="admin-delete" onClick={() => onDelete(draft)}>Delete project</button> : <span />}<div><button type="button" className="admin-cancel" onClick={onClose}>Cancel</button><button className="admin-button" disabled={busy}>{busy ? "Saving…" : "Save project"}</button></div></footer></form></div>;
 }

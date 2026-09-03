@@ -14,6 +14,7 @@ function validate(input: unknown): PortfolioProject {
     sources: item.sources.map((source) => ({ src: String(source.src), type: String(source.type ?? "video/mp4"), label: String(source.label ?? "Original") })),
     duration: String(item.duration ?? "00:00").slice(0, 20), year: Number(item.year) || new Date().getFullYear(), role: String(item.role ?? "Video editing").slice(0, 200),
     tools: Array.isArray(item.tools) ? item.tools.map(String).slice(0, 20) : [], featured: Boolean(item.featured), imagePosition: item.imagePosition ? String(item.imagePosition) : undefined,
+    category: item.category ? String(item.category).slice(0, 80) : undefined,
   };
 }
 
