@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Close, Menu } from "@/components/icons";
-import { categories } from "@/data/categories";
+// icons not needed in simplified navbar
 import { siteConfig } from "@/lib/site";
 
 const links = [
@@ -35,22 +34,11 @@ export function Navbar() {
           <span className="mark" aria-hidden="true"><i /><i /></span>{siteConfig.name}
         </Link>
         <nav className="desktop-nav" aria-label="Main navigation">
-          {categories.slice(1, 7).map((c) => <Link key={c.slug} href={`/work?category=${c.slug}`}>{c.label}</Link>)}
-          {links.map((link) => <Link key={link.href} href={link.href}>{link.label}</Link>)}
+              {links.map((link) => <Link key={link.href} href={link.href}>{link.label}</Link>)}
         </nav>
         <span aria-hidden="true" />
-        <button className="menu-toggle" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-controls="mobile-menu" aria-label={open ? "Close menu" : "Open menu"}>
-          {open ? <Close /> : <Menu />}
-        </button>
       </div>
-      <div id="mobile-menu" className={`mobile-menu ${open ? "is-open" : ""}`} aria-hidden={!open}>
-        <nav aria-label="Mobile navigation">
-          {[
-            { label: "Work", href: "/work" },
-            ...links,
-          ].map((link, index) => <Link key={link.href} href={link.href} onClick={() => setOpen(false)}><span>0{index + 1}</span>{link.label}</Link>)}
-        </nav>
-      </div>
+      {/* Mobile uses the desktop nav directly now */}
     </header>
   );
 }
