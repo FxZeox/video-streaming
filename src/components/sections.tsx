@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Spark } from "@/components/icons";
-import { processSteps, services, testimonials } from "@/data/content";
+import { processSteps, services } from "@/data/content";
 import { getProjects } from "@/lib/project-store";
 import { VideoCard } from "@/components/video-card";
 import { siteConfig } from "@/lib/site";
@@ -31,9 +31,7 @@ export function Process() {
   return <section className="section process-section"><div className="container"><SectionHeading eyebrow="04 / The process" title="Clear, collaborative, considered." copy="No mystery. Just a simple process that keeps the project moving and the creative sharp." /><div className="process-grid">{processSteps.map((step) => <article key={step.number}><span>{step.number}</span><div className="process-dot" /><h3>{step.title}</h3><p>{step.description}</p></article>)}</div></div></section>;
 }
 
-export function Testimonials() {
-  return <section className="section testimonials-section"><div className="container"><p className="kicker">05 / Kind words</p><div className="testimonials-grid">{testimonials.map((item, index) => <figure key={index}><blockquote>“{item.quote}”</blockquote><figcaption><strong>{item.name}</strong><span>{item.company} · Placeholder</span></figcaption></figure>)}</div></div></section>;
-}
+// Testimonials removed per request.
 
 export function PageHero({ eyebrow, title, copy }: { eyebrow: string; title: React.ReactNode; copy: string }) {
   return <section className="page-hero"><div className="container"><p className="kicker">{eyebrow}</p><h1>{title}</h1><p className="page-intro">{copy}</p></div></section>;

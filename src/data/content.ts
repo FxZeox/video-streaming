@@ -14,7 +14,4 @@ export const processSteps = [
   { number: "04", title: "Final delivery", description: "You receive polished masters, exports, and any agreed cutdowns." },
 ] as const;
 
-export const testimonials = [
-  { quote: "Client testimonial goes here. Use this space for a specific result, collaboration detail, or moment that built trust.", name: "Client name", company: "Company / role" },
-  { quote: "A second placeholder for future feedback. Short, candid testimonials tend to feel the most credible.", name: "Client name", company: "Company / role" },
-] as const;
+// Testimonials removed — content managed via admin projects. Kept minimal.
