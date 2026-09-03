@@ -34,8 +34,9 @@ yarn-error.log*
 .env*
 
 # temporary file-backed admin content
-/data/admin-projects.json
-/data/admin-projects.json.tmp
+# (committed so production shows the same admin state as local)
+#/data/admin-projects.json
+#/data/admin-projects.json.tmp
 
 # vercel
 .vercel
