@@ -11,8 +11,10 @@ export function SectionHeading({ eyebrow, title, copy, action }: { eyebrow: stri
 }
 
 export async function FeaturedWork() {
-  const featuredProjects = (await getProjects()).filter((project) => project.featured);
-  return <section className="section section-work"><div className="container"><SectionHeading eyebrow="01 / Selected work" title="A few stories, shaped in the edit." copy="From first assembly to final color—each project is built to hold attention and leave a mark." action={{ label: "Explore all work", href: "/work" }} /><div className="featured-grid">{featuredProjects.map((project, index) => <VideoCard key={project.id} project={project} large={index === 0} />)}</div></div></section>;
+  const projects = await getProjects();
+  const visibleProjects = projects.some((project) => project.featured) ? projects.filter((project) => project.featured) : projects;
+
+  return <section className="section section-work"><div className="container"><SectionHeading eyebrow="01 / Selected work" title="A few stories, shaped in the edit." copy="From first assembly to final color—each project is built to hold attention and leave a mark." action={{ label: "Explore all work", href: "/work" }} /><div className="featured-grid">{visibleProjects.map((project, index) => <VideoCard key={project.id} project={project} large={index === 0} />)}</div></div></section>;
 }
 
 export function ServicesPreview({ all = false }: { all?: boolean }) {

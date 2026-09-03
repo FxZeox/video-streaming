@@ -5,8 +5,8 @@ export const siteConfig = {
   description:
     "Independent video editor crafting films with rhythm, feeling, and a point of view.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://evolvisuals.com",
-  profileImageUrl: process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "",
-  ogImageUrl: process.env.NEXT_PUBLIC_OG_IMAGE_URL ?? process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "",
+  profileImageUrl: process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "/images/profile-portrait.png",
+  ogImageUrl: process.env.NEXT_PUBLIC_OG_IMAGE_URL ?? process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "/images/profile-portrait.png",
   socials: [] as { label: string; href: string }[],
 };
 
