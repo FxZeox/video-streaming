@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Close, Menu } from "@/components/icons";
+import { categories } from "@/data/categories";
 import { siteConfig } from "@/lib/site";
 
 const links = [
-  { label: "Work", href: "/work" },
   { label: "Services", href: "/services" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
@@ -35,6 +35,7 @@ export function Navbar() {
           <span className="mark" aria-hidden="true"><i /><i /></span>{siteConfig.name}
         </Link>
         <nav className="desktop-nav" aria-label="Main navigation">
+          {categories.slice(1, 7).map((c) => <Link key={c.slug} href={`/work?category=${c.slug}`}>{c.label}</Link>)}
           {links.map((link) => <Link key={link.href} href={link.href}>{link.label}</Link>)}
         </nav>
         <span aria-hidden="true" />
@@ -44,7 +45,10 @@ export function Navbar() {
       </div>
       <div id="mobile-menu" className={`mobile-menu ${open ? "is-open" : ""}`} aria-hidden={!open}>
         <nav aria-label="Mobile navigation">
-          {links.map((link, index) => <Link key={link.href} href={link.href} onClick={() => setOpen(false)}><span>0{index + 1}</span>{link.label}</Link>)}
+          {[
+            { label: "Work", href: "/work" },
+            ...links,
+          ].map((link, index) => <Link key={link.href} href={link.href} onClick={() => setOpen(false)}><span>0{index + 1}</span>{link.label}</Link>)}
         </nav>
       </div>
     </header>
