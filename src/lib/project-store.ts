@@ -12,12 +12,15 @@ export async function getProjects(): Promise<PortfolioProject[]> {
     const raw = await fs.readFile(dataFile, "utf8");
     const saved = JSON.parse(raw) as Array<Partial<PortfolioProject>>;
     return saved.map((item, index) => {
-      const fallback = seedProjects.find((project) => project.id === item.id) ?? seedProjects[0];
+      const fallback = seedProjects.find((project) => String(project.id) === String(item.id) || project.slug === item.slug) ?? seedProjects[0];
+      const normalizedId = String(item.id ?? item.slug ?? `project-${index + 1}`);
       return {
         ...fallback,
         ...item,
-        id: String(item.id ?? `project-${index + 1}`),
-        tools: Array.isArray(item.tools) ? item.tools : [],
+        id: normalizedId,
+        slug: String(item.slug ?? fallback.slug ?? `project-${index + 1}`),
+        title: String(item.title ?? fallback.title ?? "Untitled project"),
+        tools: Array.isArray(item.tools) ? item.tools : fallback.tools,
         sources: Array.isArray(item.sources) && item.sources.length ? item.sources : fallback.sources,
       };
     });

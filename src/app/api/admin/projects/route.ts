@@ -53,9 +53,24 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   if (!await isAdminAuthenticated()) return unauthorized();
-  const { id } = await request.json().catch(() => ({ id: "" })) as { id: string };
+
+  let payload: { id?: string; slug?: string } = {};
+  try {
+    const text = await request.text();
+    payload = text ? JSON.parse(text) as { id?: string; slug?: string } : {};
+  } catch {
+    payload = {};
+  }
+
+  const targetId = String(payload.id ?? "").trim();
+  const targetSlug = String(payload.slug ?? "").trim();
   const projects = await getProjects();
-  const next = projects.filter((project) => project.id !== id);
+  const next = projects.filter((project) => {
+    const projectId = String(project.id ?? "");
+    const projectSlug = String(project.slug ?? "");
+    return projectId !== targetId && projectSlug !== targetId && projectSlug !== targetSlug;
+  });
+
   if (next.length === projects.length) return NextResponse.json({ error: "Project not found." }, { status: 404 });
   await saveProjects(next);
   return NextResponse.json({ ok: true });

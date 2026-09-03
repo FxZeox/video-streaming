@@ -34,19 +34,20 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
 
   async function save(project: PortfolioProject) {
     setBusy(true); setMessage("");
-    const exists = projects.some((item) => item.id === project.id);
-    const response = await fetch("/api/admin/projects", { method: exists ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(project) });
+    const normalizedProject = { ...project, id: String(project.id || crypto.randomUUID()), slug: String(project.slug || "untitled") };
+    const exists = projects.some((item) => String(item.id) === String(normalizedProject.id));
+    const response = await fetch("/api/admin/projects", { method: exists ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(normalizedProject) });
     const result = await response.json(); setBusy(false);
     if (!response.ok) return setMessage(result.error ?? "Could not save project.");
-    setProjects((items) => exists ? items.map((item) => item.id === result.id ? result : item) : [result, ...items]);
+    setProjects((items) => exists ? items.map((item) => String(item.id) === String(result.id) ? result : item) : [result, ...items]);
     setSelected(null); setMessage("Project saved. The portfolio now uses the updated details.");
   }
 
   async function remove(project: PortfolioProject) {
     if (!window.confirm(`Delete “${project.title}”? This cannot be undone.`)) return;
-    const response = await fetch("/api/admin/projects", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: project.id }) });
+    const response = await fetch("/api/admin/projects", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: String(project.id), slug: String(project.slug) }) });
     if (!response.ok) return setMessage("Could not delete the project.");
-    setProjects((items) => items.filter((item) => item.id !== project.id)); setSelected(null); setMessage("Project deleted.");
+    setProjects((items) => items.filter((item) => String(item.id) !== String(project.id) && String(item.slug) !== String(project.slug))); setSelected(null); setMessage("Project deleted.");
   }
 
   if (!loggedIn) return <main className="admin-login"><section><Link className="admin-brand" href="/">{siteConfig.name}</Link><p className="admin-kicker">Private administration</p><h1>Welcome<br /><em>back.</em></h1>{!configured && <div className="admin-warning">Set ADMIN_USERNAME, ADMIN_PASSWORD, and ADMIN_SESSION_SECRET in <code>.env.local</code> before signing in.</div>}<form onSubmit={login}><label>Username<input name="username" autoComplete="username" required /></label><label>Password<div className="password-input"><input name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff /> : <Eye />}</button></div></label>{message && <p className="admin-error" role="alert">{message}</p>}<button className="admin-button" disabled={busy || !configured}>{busy ? "Signing in…" : <>Sign in <ArrowRight /></>}</button></form><small>This page is intentionally not linked from the public website.</small></section></main>;

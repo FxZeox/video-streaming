@@ -1,6 +1,6 @@
 export const siteConfig = {
-  name: "Fahad B Ali",
-  editorName: "Fahad B Ali",
+  name: "Evol Visuals",
+  editorName: "Evol Visuals",
   email: "hello@yourstudio.com",
   description:
     "Independent video editor crafting films with rhythm, feeling, and a point of view.",
