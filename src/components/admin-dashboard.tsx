@@ -9,7 +9,7 @@ import { siteConfig } from "@/lib/site";
 
 const emptyProject = (): PortfolioProject => ({
   id: crypto.randomUUID(), slug: "", title: "", eyebrow: "Project", description: "", longDescription: "", thumbnail: "", poster: "",
-  sources: [{ src: "", type: "video/mp4", label: "1080p" }], duration: "00:00", year: new Date().getFullYear(), role: "Video editing", tools: [], featured: false,
+  sources: [{ src: "", type: "video/mp4", label: "1080p" }], duration: "00:00", year: new Date().getFullYear(), role: "Video editing", tools: [], featured: true,
 });
 
 export function AdminDashboard({ authenticated, configured, initialProjects }: { authenticated: boolean; configured: boolean; initialProjects: PortfolioProject[] }) {
