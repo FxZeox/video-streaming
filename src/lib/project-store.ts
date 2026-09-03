@@ -6,7 +6,7 @@ import type { PortfolioProject } from "@/data/projects";
 
 const dataDirectory = process.env.ADMIN_DATA_DIR
   ? path.resolve(process.env.ADMIN_DATA_DIR)
-  : path.join(process.env.TMPDIR || process.env.TEMP || "/tmp", "video-streaming-data");
+  : path.join(process.cwd(), "data");
 const dataFile = path.join(dataDirectory, "admin-projects.json");
 
 export async function getProjects(): Promise<PortfolioProject[]> {
@@ -50,4 +50,17 @@ export async function saveProjects(projects: PortfolioProject[]) {
   const temporaryFile = `${dataFile}.tmp`;
   await fs.writeFile(temporaryFile, `${JSON.stringify(projects, null, 2)}\n`, "utf8");
   await fs.rename(temporaryFile, dataFile);
+}
+
+let mutationQueue: Promise<void> = Promise.resolve();
+
+export function mutateProjects<T>(mutation: (projects: PortfolioProject[]) => Promise<{ projects: PortfolioProject[]; result: T }> | { projects: PortfolioProject[]; result: T }): Promise<T> {
+  const operation = mutationQueue.then(async () => {
+    const current = await getProjects();
+    const { projects, result } = await mutation(current);
+    await saveProjects(projects);
+    return result;
+  });
+  mutationQueue = operation.then(() => undefined, () => undefined);
+  return operation;
 }

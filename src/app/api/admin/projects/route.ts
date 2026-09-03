@@ -1,27 +1,33 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { getProjects, saveProjects } from "@/lib/project-store";
 import { deleteCloudinaryAsset } from "@/lib/cloudinary";
-import type { PortfolioProject } from "@/data/projects";
+import { getProjects, mutateProjects } from "@/lib/project-store";
+import { validateProject, type ProjectFieldErrors } from "@/lib/project-validation";
 
-function validate(input: unknown): PortfolioProject {
-  if (!input || typeof input !== "object") throw new Error("Invalid project data.");
-  const item = input as Partial<PortfolioProject>;
-  if (!item.id || !item.title || !item.slug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.slug)) throw new Error("ID, title, and a URL-safe slug are required.");
-  // allow saving drafts without thumbnail/poster/video URL — these can be uploaded later via the admin UI
-  return {
-    id: String(item.id).slice(0, 80), slug: item.slug, title: String(item.title).slice(0, 140), eyebrow: String(item.eyebrow ?? "Project").slice(0, 80),
-    description: String(item.description ?? "").slice(0, 400), longDescription: String(item.longDescription ?? "").slice(0, 3000), thumbnail: String(item.thumbnail ?? ""),
-    // allow poster to fall back to thumbnail if not provided
-    poster: String(item.poster ?? item.thumbnail ?? ""),
-    sources: Array.isArray(item.sources) ? item.sources.map((source) => ({ src: String(source?.src ?? ""), type: String(source?.type ?? "video/mp4"), label: String(source?.label ?? "Original") })) : [{ src: "", type: "video/mp4", label: "Original" }],
-    duration: String(item.duration ?? "00:00").slice(0, 20), year: Number(item.year) || new Date().getFullYear(), role: String(item.role ?? "Video editing").slice(0, 200),
-    tools: Array.isArray(item.tools) ? item.tools.map(String).slice(0, 20) : [], featured: Boolean(item.featured), imagePosition: item.imagePosition ? String(item.imagePosition) : undefined,
-    category: item.category ? String(item.category).slice(0, 80) : undefined,
-  };
+class ApiError extends Error {
+  constructor(message: string, readonly status = 400) { super(message); }
 }
 
-async function unauthorized() { return NextResponse.json({ error: "Unauthorized." }, { status: 401 }); }
+function unauthorized() {
+  return NextResponse.json({ error: "Your admin session has expired. Sign in again." }, { status: 401 });
+}
+
+async function readBody(request: Request) {
+  try { return await request.json() as unknown; }
+  catch { throw new ApiError("The project request is not valid JSON."); }
+}
+
+function validationError(errors: ProjectFieldErrors) {
+  return NextResponse.json({ error: "Please correct the highlighted fields.", fieldErrors: errors }, { status: 422 });
+}
+
+function refreshPortfolio(...slugs: string[]) {
+  revalidatePath("/");
+  revalidatePath("/work");
+  revalidatePath("/sitemap.xml");
+  for (const slug of slugs.filter(Boolean)) revalidatePath(`/work/${slug}`);
+}
 
 export async function GET() {
   if (!await isAdminAuthenticated()) return unauthorized();
@@ -31,62 +37,65 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!await isAdminAuthenticated()) return unauthorized();
   try {
-    const project = validate(await request.json());
-    const projects = await getProjects();
-    if (projects.some((item) => item.id === project.id || item.slug === project.slug)) return NextResponse.json({ error: "That ID or slug already exists." }, { status: 409 });
-    projects.unshift(project); await saveProjects(projects);
+    const validated = validateProject(await readBody(request));
+    if (!validated.success) return validationError(validated.errors);
+    const project = validated.project;
+    await mutateProjects((projects) => {
+      if (projects.some((item) => item.id === project.id)) throw new ApiError("A project with that ID already exists.", 409);
+      if (projects.some((item) => item.slug === project.slug)) throw new ApiError("That URL slug is already being used.", 409);
+      return { projects: [project, ...projects], result: project };
+    });
+    refreshPortfolio(project.slug);
     return NextResponse.json(project, { status: 201 });
-  } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Could not save project." }, { status: 400 }); }
+  } catch (error) {
+    const status = error instanceof ApiError ? error.status : 500;
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not save the project." }, { status });
+  }
 }
 
 export async function PUT(request: Request) {
   if (!await isAdminAuthenticated()) return unauthorized();
   try {
-    const project = validate(await request.json());
-    const projects = await getProjects();
-    const index = projects.findIndex((item) => item.id === project.id);
-    if (index < 0) return NextResponse.json({ error: "Project not found." }, { status: 404 });
-    if (projects.some((item, itemIndex) => itemIndex !== index && item.slug === project.slug)) return NextResponse.json({ error: "That slug already exists." }, { status: 409 });
-    projects[index] = project; await saveProjects(projects);
+    const validated = validateProject(await readBody(request));
+    if (!validated.success) return validationError(validated.errors);
+    const project = validated.project;
+    const previousSlug = await mutateProjects((projects) => {
+      const index = projects.findIndex((item) => item.id === project.id);
+      if (index < 0) throw new ApiError("Project not found. Refresh the dashboard and try again.", 404);
+      if (projects.some((item, itemIndex) => itemIndex !== index && item.slug === project.slug)) throw new ApiError("That URL slug is already being used.", 409);
+      const oldSlug = projects[index].slug;
+      const updated = [...projects];
+      updated[index] = project;
+      return { projects: updated, result: oldSlug };
+    });
+    refreshPortfolio(previousSlug, project.slug);
     return NextResponse.json(project);
-  } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Could not update project." }, { status: 400 }); }
+  } catch (error) {
+    const status = error instanceof ApiError ? error.status : 500;
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not update the project." }, { status });
+  }
 }
 
 export async function DELETE(request: Request) {
   if (!await isAdminAuthenticated()) return unauthorized();
-
-  let payload: { id?: string; slug?: string } = {};
   try {
-    const text = await request.text();
-    payload = text ? JSON.parse(text) as { id?: string; slug?: string } : {};
-  } catch {
-    payload = {};
+    const payload = await readBody(request) as { id?: unknown };
+    const id = typeof payload.id === "string" ? payload.id.trim() : "";
+    if (!id) throw new ApiError("A project ID is required.");
+
+    const removed = await mutateProjects((projects) => {
+      const project = projects.find((item) => item.id === id);
+      if (!project) throw new ApiError("Project not found. It may already have been deleted.", 404);
+      return { projects: projects.filter((item) => item.id !== id), result: project };
+    });
+
+    refreshPortfolio(removed.slug);
+    const assetUrls = [...new Set([removed.thumbnail, removed.poster, ...(removed.sources ?? []).map((source) => source.src)].filter(Boolean))];
+    const cleanup = await Promise.allSettled(assetUrls.map((url) => deleteCloudinaryAsset(url)));
+    const assetsDeleted = cleanup.filter((result) => result.status === "fulfilled" && result.value).length;
+    return NextResponse.json({ ok: true, deletedId: removed.id, assetsDeleted });
+  } catch (error) {
+    const status = error instanceof ApiError ? error.status : 500;
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not delete the project." }, { status });
   }
-
-  const targetId = String(payload.id ?? "").trim();
-  const targetSlug = String(payload.slug ?? "").trim();
-  const projects = await getProjects();
-  const removed = projects.find((project) => {
-    const projectId = String(project.id ?? "");
-    const projectSlug = String(project.slug ?? "");
-    return projectId === targetId || projectSlug === targetId || projectSlug === targetSlug;
-  });
-
-  if (!removed) return NextResponse.json({ error: "Project not found." }, { status: 404 });
-
-  const next = projects.filter((project) => {
-    const projectId = String(project.id ?? "");
-    const projectSlug = String(project.slug ?? "");
-    return projectId !== targetId && projectSlug !== targetId && projectSlug !== targetSlug;
-  });
-
-  const urlsToDelete = [removed.thumbnail, removed.poster, ...(removed.sources ?? []).map((source) => source.src)];
-  for (const url of urlsToDelete) {
-    if (url && /cloudinary\.com|res\.cloudinary\.com/i.test(url)) {
-      await deleteCloudinaryAsset(url);
-    }
-  }
-
-  await saveProjects(next);
-  return NextResponse.json({ ok: true });
 }
