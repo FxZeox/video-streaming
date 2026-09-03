@@ -80,22 +80,13 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
   </main>;
 }
 
-function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: PortfolioProject; busy: boolean; onClose: () => void; onSave: (project: PortfolioProject) => void; onDelete?: (project: PortfolioProject) => void }) {
+function ProjectEditor({ project, busy, onClose, onSave, onDelete, onSetBusy, onSetMessage }: { project: PortfolioProject; busy: boolean; onClose: () => void; onSave: (project: PortfolioProject) => void; onDelete?: (project: PortfolioProject) => void; onSetBusy?: (b: boolean) => void; onSetMessage?: (m: string) => void }) {
   const [draft, setDraft] = useState(project);
-  const [serverImages, setServerImages] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [localMessage, setLocalMessage] = useState("");
   const update = <K extends keyof PortfolioProject>(key: K, value: PortfolioProject[K]) => setDraft((item) => ({ ...item, [key]: value }));
   const autoSlug = (title: string) => title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/admin/images");
-        if (!mounted) return;
-        if (res.ok) setServerImages(await res.json());
-      } catch (e) { /* ignore */ }
-    })();
-    return () => { mounted = false; };
-  }, []);
+  // No server-side image listing — admin uploads directly to Cloudinary.
   return <div className="admin-modal" role="dialog" aria-modal="true" aria-label="Project editor"><button className="admin-backdrop" onClick={onClose} aria-label="Close editor" /><form onSubmit={(event) => { event.preventDefault(); onSave(draft); }}><header><div><p className="admin-kicker">{onDelete ? "Edit project" : "New project"}</p><h2>{draft.title || "Untitled project"}</h2></div><button type="button" onClick={onClose} aria-label="Close"><Close /></button></header><div className="admin-form-body">
       <div className="admin-form-grid">
         <Field label="Project title" value={draft.title} onChange={(value) => { update("title", value); if (!onDelete) update("slug", autoSlug(value)); }} required />
@@ -112,18 +103,28 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
           <datalist id="category-options">{categories.map((c) => <option key={c.slug} value={c.label} />)}</datalist>
         </label>
 
-        <div className="admin-form-section"><h3>Media</h3><p>Upload thumbnail, poster, and video files. Files will be stored on Cloudinary.</p></div>
-        <label className="admin-field"><span>Upload thumbnail</span><input type="file" accept="image/*" onChange={async (e) => {
-          const file = e.currentTarget.files?.[0]; if (!file) return; setBusy(true);
-          try { const fd = new FormData(); fd.append("file", file); const res = await fetch("/api/admin/upload", { method: "POST", body: fd }); const json = await res.json(); if (res.ok) update("thumbnail", json.path); else setMessage(json.error ?? "Upload failed"); } catch (err) { setMessage("Upload failed"); } finally { setBusy(false); }
+        <div className="admin-form-section"><h3>Media</h3><p>Upload thumbnail and video files. Files are uploaded to Cloudinary.</p></div>
+        <label className="admin-field"><span>Upload thumbnail</span><input disabled={busy || uploading} type="file" accept="image/*" onChange={async (e) => {
+          const file = e.currentTarget.files?.[0]; if (!file) return; (onSetBusy ?? setUploading)(true);
+          try {
+            const fd = new FormData(); fd.append("file", file);
+            const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+            const json = await res.json();
+            if (res.ok) update("thumbnail", json.path);
+            else (onSetMessage ?? setLocalMessage)(json.error ?? "Upload failed");
+          } catch (err) { (onSetMessage ?? setLocalMessage)("Upload failed"); }
+          finally { (onSetBusy ?? setUploading)(false); }
         }} /></label>
-        <label className="admin-field"><span>Upload poster</span><input type="file" accept="image/*" onChange={async (e) => {
-          const file = e.currentTarget.files?.[0]; if (!file) return; setBusy(true);
-          try { const fd = new FormData(); fd.append("file", file); const res = await fetch("/api/admin/upload", { method: "POST", body: fd }); const json = await res.json(); if (res.ok) update("poster", json.path); else setMessage(json.error ?? "Upload failed"); } catch (err) { setMessage("Upload failed"); } finally { setBusy(false); }
-        }} /></label>
-        <label className="admin-field wide"><span>Upload video</span><input type="file" accept="video/*" onChange={async (e) => {
-          const file = e.currentTarget.files?.[0]; if (!file) return; setBusy(true);
-          try { const fd = new FormData(); fd.append("file", file); const res = await fetch("/api/admin/upload", { method: "POST", body: fd }); const json = await res.json(); if (res.ok) update("sources", [{ ...draft.sources[0], src: json.path, type: file.type }]); else setMessage(json.error ?? "Upload failed"); } catch (err) { setMessage("Upload failed"); } finally { setBusy(false); }
+        <label className="admin-field wide"><span>Upload video</span><input disabled={busy || uploading} type="file" accept="video/*" onChange={async (e) => {
+          const file = e.currentTarget.files?.[0]; if (!file) return; (onSetBusy ?? setUploading)(true);
+          try {
+            const fd = new FormData(); fd.append("file", file);
+            const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+            const json = await res.json();
+            if (res.ok) update("sources", [{ ...draft.sources[0], src: json.path, type: file.type }]);
+            else (onSetMessage ?? setLocalMessage)(json.error ?? "Upload failed");
+          } catch (err) { (onSetMessage ?? setLocalMessage)("Upload failed"); }
+          finally { (onSetBusy ?? setUploading)(false); }
         }} /></label>
         <Field label="Video MIME type" value={draft.sources[0]?.type ?? "video/mp4"} onChange={(value) => update("sources", [{ ...draft.sources[0], type: value }])} />
         <Field label="Quality label" value={draft.sources[0]?.label ?? "1080p"} onChange={(value) => update("sources", [{ ...draft.sources[0], label: value }])} />
