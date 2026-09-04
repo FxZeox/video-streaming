@@ -265,16 +265,19 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
   const autoSlug = (title: string) => title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
   useEffect(() => {
-    persistDraft();
-  }, [draft, draftKey, project.id]);
-
-  useEffect(() => {
     if (typeof window === "undefined") return;
     const handleBeforeUnload = () => {
       persistDraft();
     };
+    const handlePageHide = () => {
+      persistDraft();
+    };
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
   }, [draft, draftKey, project.id]);
 
   function detectDuration(file: File) {
