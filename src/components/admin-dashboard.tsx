@@ -56,6 +56,31 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  useEffect(() => {
+    if (!loggedIn || typeof window === "undefined") return;
+    const lastOpenId = window.localStorage.getItem("admin-project-last-open");
+    if (!lastOpenId) return;
+
+    const restored = restoreDraftProject(lastOpenId);
+    if (restored) {
+      setSelected(restored);
+    }
+  }, [loggedIn]);
+
+  const openProject = (project: PortfolioProject) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("admin-project-last-open", project.id);
+    }
+    setSelected(project);
+  };
+
+  const closeProject = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("admin-project-last-open");
+    }
+    setSelected(null);
+  };
+
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -173,7 +198,7 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
           if (draft.id !== "new-project") {
             draft.id = "new-project";
           }
-          setSelected(draft);
+          openProject(draft);
           setMessage("");
         }}>+ Add project</button></div>
         <section className="admin-guide" aria-labelledby="publishing-guide-title">
@@ -194,12 +219,12 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
             <div><small>{project.category || "—"}</small></div>
             <div className="admin-source"><span>{project.sources?.[0]?.src || "No video source"}</span></div>
             <span>{project.year}</span><span className={project.featured ? "status-featured" : "status-live"}>{project.featured ? "Featured" : "Live"}</span>
-            <button onClick={() => { setSelected(structuredClone(project)); setMessage(""); }}>Edit</button>
+            <button onClick={() => { const draft = structuredClone(project); openProject(draft); setMessage(""); }}>Edit</button>
           </article>)}
         </div> : <div className="admin-empty">No projects yet. Add your first video project.</div>}
       </section>
     </div>
-    {selected && <ProjectEditor project={selected} busy={busy} onClose={() => setSelected(null)} onSave={save} onDelete={projects.some((item) => item.id === selected.id) ? remove : undefined} />}
+    {selected && <ProjectEditor project={selected} busy={busy} onClose={closeProject} onSave={save} onDelete={projects.some((item) => item.id === selected.id) ? remove : undefined} />}
   </main>;
 }
 
