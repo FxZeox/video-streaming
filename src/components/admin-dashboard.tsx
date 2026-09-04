@@ -136,7 +136,12 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
           window.localStorage.removeItem(`admin-project-draft:${finalProject.id}`);
         }
       }
-      setSelected(null);
+      // Close the editor and clear the 'last open' marker so a refresh doesn't restore the placeholder
+      try {
+        closeProject();
+      } catch {
+        setSelected(null);
+      }
       setMessage("Project saved. It is now visible on the website.");
       router.refresh();
       return { ok: true };
