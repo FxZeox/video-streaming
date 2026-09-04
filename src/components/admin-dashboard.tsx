@@ -245,13 +245,18 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [formMessage, setFormMessage] = useState("");
-  const handleClose = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(draftKey, JSON.stringify(draft));
-      if (project.id === "new-project" || draft.id === "new-project") {
-        window.localStorage.setItem("admin-project-draft:new-project", JSON.stringify(draft));
-      }
+
+  const persistDraft = () => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(draftKey, JSON.stringify(draft));
+    if (project.id === "new-project" || draft.id === "new-project") {
+      window.localStorage.setItem("admin-project-draft:new-project", JSON.stringify(draft));
     }
+    window.localStorage.setItem("admin-project-last-open", project.id);
+  };
+
+  const handleClose = () => {
+    persistDraft();
     onClose();
   };
   const [errors, setErrors] = useState<ProjectFieldErrors>({});
@@ -260,12 +265,16 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
   const autoSlug = (title: string) => title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(draftKey, JSON.stringify(draft));
-      if (project.id === "new-project" || draft.id === "new-project") {
-        window.localStorage.setItem("admin-project-draft:new-project", JSON.stringify(draft));
-      }
-    }
+    persistDraft();
+  }, [draft, draftKey, project.id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleBeforeUnload = () => {
+      persistDraft();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [draft, draftKey, project.id]);
 
   function detectDuration(file: File) {
