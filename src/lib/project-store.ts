@@ -1,12 +1,13 @@
 import "server-only";
 
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { PortfolioProject } from "@/data/projects";
 
 const dataDirectory = process.env.ADMIN_DATA_DIR
   ? path.resolve(process.env.ADMIN_DATA_DIR)
-  : path.join(process.cwd(), "data");
+  : path.join(os.tmpdir(), "video-streaming-data");
 const dataFile = path.join(dataDirectory, "admin-projects.json");
 
 export async function getProjects(): Promise<PortfolioProject[]> {
