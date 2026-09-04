@@ -114,12 +114,13 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
   async function save(project: PortfolioProject): Promise<SaveResult> {
     setBusy(true);
     setMessage("");
-    const exists = projects.some((item) => item.id === project.id);
+    const finalProject = project.id === "new-project" ? { ...project, id: crypto.randomUUID() } : project;
+    const exists = projects.some((item) => item.id === finalProject.id);
     try {
       const response = await fetch("/api/admin/projects", {
         method: exists ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(project),
+        body: JSON.stringify(finalProject),
       });
       const result = await response.json();
       if (response.status === 401) {
@@ -131,6 +132,9 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(`admin-project-draft:${project.id}`);
         window.localStorage.removeItem("admin-project-draft:new-project");
+        if (finalProject.id !== project.id) {
+          window.localStorage.removeItem(`admin-project-draft:${finalProject.id}`);
+        }
       }
       setSelected(null);
       setMessage("Project saved. It is now visible on the website.");
@@ -195,8 +199,8 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
       <section className="admin-content">
         <div className="admin-title"><div><p className="admin-kicker">Portfolio library</p><h1>Projects</h1><span>Manage the work displayed across your portfolio.</span></div><button className="admin-button" onClick={() => {
           const draft = typeof window !== "undefined" ? restoreDraftProject("new-project") ?? emptyProject() : emptyProject();
-          if (draft.id !== "new-project") {
-            draft.id = "new-project";
+          if (!draft.id || draft.id === "new-project") {
+            draft.id = crypto.randomUUID();
           }
           openProject(draft);
           setMessage("");
