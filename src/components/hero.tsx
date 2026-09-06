@@ -14,7 +14,6 @@ export function Hero() {
       <div className="hero-overlay" />
       <div className="hero-grain" />
       <div className="container hero-content">
-        <p className="kicker reveal">Video editor · Storyteller · Post production</p>
         <h1 className="reveal reveal-delay-1">Films that make<br />people <em>feel.</em></h1>
         <div className="hero-lower reveal reveal-delay-2">
           <p>Professional video editing for creators, brands, and businesses that care about every frame.</p>
