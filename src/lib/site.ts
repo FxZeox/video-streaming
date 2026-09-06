@@ -8,7 +8,9 @@ export const siteConfig = {
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://evolvisuals.com",
   profileImageUrl: process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "/images/profile-portrait.png",
   ogImageUrl: process.env.NEXT_PUBLIC_OG_IMAGE_URL ?? process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "/images/profile-portrait.png",
-  socials: [] as { label: string; href: string }[],
+  socials: [
+    { label: "Instagram", href: "https://www.instagram.com/evol.visuals" },
+  ] as { label: string; href: string }[],
 };
 
 export function videoAsset(path: string) {
