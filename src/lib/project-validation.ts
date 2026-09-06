@@ -21,6 +21,15 @@ function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeCategory(category: string) {
+  return category.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+
+function isThumbnailOnlyCategory(category: string) {
+  const normalized = normalizeCategory(category);
+  return normalized === "thumbnail" || normalized.includes("thumbnail");
+}
+
 function validMediaLocation(value: string) {
   if (value.startsWith("/")) return !value.startsWith("//");
   try {
@@ -46,6 +55,7 @@ export function validateProject(input: unknown): ProjectValidationResult {
   const thumbnail = text(item.thumbnail);
   const poster = text(item.poster) || thumbnail;
   const year = Number(item.year);
+  const isThumbnailOnly = isThumbnailOnlyCategory(category);
   const videoUrl = text(item.sources?.[0]?.src);
   const errors: ProjectFieldErrors = {};
 
@@ -68,8 +78,10 @@ export function validateProject(input: unknown): ProjectValidationResult {
   if (!thumbnail) errors.thumbnail = "Upload a thumbnail before saving.";
   else if (!validMediaLocation(thumbnail)) errors.thumbnail = "Thumbnail must be an HTTPS URL or a local /path.";
 
-  if (!videoUrl) errors.videoUrl = "Upload a video before saving.";
-  else if (!validMediaLocation(videoUrl)) errors.videoUrl = "Video must be an HTTPS URL or a local /path.";
+  if (!isThumbnailOnly) {
+    if (!videoUrl) errors.videoUrl = "Upload a video before saving.";
+    else if (!validMediaLocation(videoUrl)) errors.videoUrl = "Video must be an HTTPS URL or a local /path.";
+  }
 
   if (Object.keys(errors).length) return { success: false, errors };
 
@@ -85,7 +97,7 @@ export function validateProject(input: unknown): ProjectValidationResult {
       longDescription,
       thumbnail,
       poster,
-      sources: [{ src: videoUrl, type: text(firstSource?.type) || "video/mp4", label: text(firstSource?.label) || "Original" }],
+      sources: [{ src: isThumbnailOnly ? "" : videoUrl, type: text(firstSource?.type) || "video/mp4", label: text(firstSource?.label) || "Original" }],
       duration: duration || "00:00",
       year,
       role: role || "Video editing",

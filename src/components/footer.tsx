@@ -28,7 +28,7 @@ export function Footer() {
           </div>
         </div>
       </div>
-      <div className="container footer-bottom"><span>© {new Date().getFullYear()} {siteConfig.name}</span><span>Independent video editor · Available worldwide</span></div>
+      <div className="container footer-bottom"><span>© {new Date().getFullYear()} {siteConfig.name}</span><span> Available worldwide</span></div>
     </footer>
   );
 }

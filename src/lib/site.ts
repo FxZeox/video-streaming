@@ -10,6 +10,7 @@ export const siteConfig = {
   ogImageUrl: process.env.NEXT_PUBLIC_OG_IMAGE_URL ?? process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "/images/profile-portrait.png",
   socials: [
     { label: "Instagram", href: "https://www.instagram.com/evol.visuals" },
+    { label: "Discord", href: "https://discord.com/users/768351955662798868" },
   ] as { label: string; href: string }[],
 };
 
