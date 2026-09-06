@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { VideoPlayer } from "@/components/video-player";
@@ -15,8 +16,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProjectPage({ params }: { params: Promise<{ slug: string }> }) {
   const project = await getProject((await params).slug);
   if (!project) notFound();
+  const hasVideo = (project.sources ?? []).some((source) => Boolean(source?.src));
   return <main id="main" className="project-page">
-    <section className="project-hero"><div className="container"><Link href="/work" className="back-link">← All work</Link><div className="project-title"><div><p className="kicker">{project.eyebrow} · {project.year}</p><h1>{project.title}</h1></div><span>{project.duration}</span></div><VideoPlayer title={project.title} poster={project.poster} sources={project.sources} /></div></section>
+    <section className="project-hero"><div className="container"><Link href="/work" className="back-link">← All work</Link><div className="project-title"><div><p className="kicker">{project.eyebrow} · {project.year}</p><h1>{project.title}</h1></div><span>{project.duration}</span></div>{hasVideo ? <VideoPlayer title={project.title} poster={project.poster} sources={project.sources} /> : <div className="project-poster-wrap"><Image src={project.poster || project.thumbnail} alt={`${project.title} poster`} fill sizes="100vw" priority unoptimized={Boolean(project.poster?.startsWith("http") || project.thumbnail?.startsWith("http"))} /></div>}</div></section>
     <section className="project-details"><div className="container project-details-grid"><div><p className="kicker">The project</p><p className="project-lead">{project.longDescription}</p></div><dl><div><dt>Year</dt><dd>{project.year}</dd></div><div><dt>Duration</dt><dd>{project.duration}</dd></div><div><dt>Role</dt><dd>{project.role}</dd></div><div><dt>Tools</dt><dd>{(project.tools ?? []).join(" · ") || "Not specified"}</dd></div></dl></div></section>
   </main>;
 }
