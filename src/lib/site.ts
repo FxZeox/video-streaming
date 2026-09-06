@@ -2,6 +2,7 @@ export const siteConfig = {
   name: "Evol Visuals",
   editorName: "Evol Visuals",
   email: "evolai143@gmail.com",
+  heroKicker: "",
   description:
     "Independent video editor crafting films with rhythm, feeling, and a point of view.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://evolvisuals.com",
