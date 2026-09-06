@@ -42,7 +42,7 @@ export async function deleteCloudinaryAsset(url?: string) {
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = crypto
       .createHash("sha1")
-      .update(`public_id=${meta.publicId}&timestamp=${timestamp}${apiSecret}`)
+      .update(`invalidate=true&public_id=${meta.publicId}&timestamp=${timestamp}${apiSecret}`)
       .digest("hex");
 
     const params = new URLSearchParams({

@@ -20,6 +20,7 @@ export async function getProjects(): Promise<PortfolioProject[]> {
     const publicId = process.env.ADMIN_DATA_PUBLIC_ID ?? "admin-projects";
 
     let saved: Array<Partial<PortfolioProject>> = [];
+    let loadedFromCloudinary = false;
 
     if (cloudName && apiKey && apiSecret) {
       try {
@@ -31,10 +32,11 @@ export async function getProjects(): Promise<PortfolioProject[]> {
           const meta = await metaResp.json();
           const url = meta.secure_url || meta.url;
           if (url) {
-            const contentResp = await fetch(url);
+            const contentResp = await fetch(url, { cache: "no-store" });
             if (contentResp.ok) {
               const raw = await contentResp.text();
               saved = JSON.parse(raw) as Array<Partial<PortfolioProject>>;
+              loadedFromCloudinary = true;
             }
           }
         }
@@ -45,7 +47,7 @@ export async function getProjects(): Promise<PortfolioProject[]> {
     }
 
     // If not loaded from Cloudinary, try local file
-    if (!saved || !saved.length) {
+    if (!loadedFromCloudinary) {
       try {
         const raw = await fs.readFile(dataFile, "utf8");
         saved = JSON.parse(raw) as Array<Partial<PortfolioProject>>;
@@ -100,7 +102,7 @@ export async function saveProjects(projects: PortfolioProject[]) {
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = crypto
       .createHash("sha1")
-      .update(`public_id=${publicId}&timestamp=${timestamp}${apiSecret}`)
+      .update(`overwrite=true&public_id=${publicId}&timestamp=${timestamp}${apiSecret}`)
       .digest("hex");
 
     const fileParam = `data:application/json;base64,${Buffer.from(json, "utf8").toString("base64")}`;

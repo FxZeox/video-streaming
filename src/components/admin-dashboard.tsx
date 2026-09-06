@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { PortfolioProject } from "@/data/projects";
@@ -62,9 +62,9 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
     if (!lastOpenId) return;
 
     const restored = restoreDraftProject(lastOpenId);
-    if (restored) {
-      setSelected(restored);
-    }
+    if (!restored) return;
+    const timer = window.setTimeout(() => setSelected(restored), 0);
+    return () => window.clearTimeout(timer);
   }, [loggedIn]);
 
   const openProject = (project: PortfolioProject) => {
@@ -215,7 +215,7 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
           <ol>
             <li><span>01</span><div><strong>Add the story</strong><p>Enter a clear title, project type, year, category, and both descriptions.</p></div></li>
             <li><span>02</span><div><strong>Upload a thumbnail</strong><p>Use a 16:9 JPG, PNG, or WebP image. A 1600 × 900 image works best.</p></div></li>
-            <li><span>03</span><div><strong>Upload the video</strong><p>Choose an MP4 or WebM file up to 100 MB. Duration is detected automatically.</p></div></li>
+            <li><span>03</span><div><strong>Upload the video</strong><p>Choose an MP4 or WebM file. Keep this page open until the progress reaches 100%.</p></div></li>
             <li><span>04</span><div><strong>Save and review</strong><p>Open “View website” to check the card and playback. Use Edit or Delete here anytime.</p></div></li>
           </ol>
         </section>
@@ -255,14 +255,14 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
   const [uploadProgress, setUploadProgress] = useState(0);
   const [formMessage, setFormMessage] = useState("");
 
-  const persistDraft = () => {
+  const persistDraft = useCallback(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(draftKey, JSON.stringify(draft));
     if (project.id === "new-project" || draft.id === "new-project") {
       window.localStorage.setItem("admin-project-draft:new-project", JSON.stringify(draft));
     }
     window.localStorage.setItem("admin-project-last-open", project.id);
-  };
+  }, [draft, draftKey, project.id]);
 
   const handleClose = () => {
     persistDraft();
@@ -287,13 +287,22 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
       window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("pagehide", handlePageHide);
     };
-  }, [draft, draftKey, project.id]);
+  }, [persistDraft]);
 
   function detectDuration(file: File) {
     return new Promise<string>((resolve) => {
       const url = URL.createObjectURL(file);
       const video = document.createElement("video");
-      const finish = (value: string) => { URL.revokeObjectURL(url); resolve(value); };
+      let finished = false;
+      const timeout = window.setTimeout(() => finish(""), 10000);
+      const finish = (value: string) => {
+        if (finished) return;
+        finished = true;
+        window.clearTimeout(timeout);
+        URL.revokeObjectURL(url);
+        video.removeAttribute("src");
+        resolve(value);
+      };
       video.preload = "metadata";
       video.onloadedmetadata = () => {
         const total = Math.max(0, Math.round(video.duration));
@@ -334,9 +343,18 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
     clearError(kind === "thumbnail" ? "thumbnail" : "videoUrl");
 
     try {
+      if (file.size === 0) throw new Error("The selected file is empty. Choose another file.");
+      const expectedType = kind === "thumbnail" ? "image/" : "video/";
+      if (!file.type.startsWith(expectedType)) {
+        throw new Error(kind === "thumbnail" ? "Choose a valid image file." : "Choose a valid video file.");
+      }
+
       const cloudConfigResponse = await fetch("/api/admin/upload", { method: "GET" });
       const cloudConfig = await cloudConfigResponse.json();
       if (!cloudConfigResponse.ok) throw new Error(cloudConfig.error ?? "Upload configuration is unavailable.");
+      if (!cloudConfig.url || (!cloudConfig.uploadPreset && (!cloudConfig.apiKey || !cloudConfig.signature))) {
+        throw new Error("Upload configuration is incomplete. Check the Cloudinary environment variables.");
+      }
 
       const formData = new FormData();
       formData.append("file", file);
@@ -348,19 +366,10 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
         formData.append("signature", cloudConfig.signature);
       }
 
-      if (kind === "thumbnail") {
-        const response = await fetch(cloudConfig.url, { method: "POST", body: formData });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result?.error?.message ?? "Upload failed.");
-        update("thumbnail", result.secure_url ?? result.url);
-        update("poster", result.secure_url ?? result.url);
-        return;
-      }
-
-      const detectedDuration = file.size < 25 * 1024 * 1024 ? await detectDuration(file) : "";
       const result = await new Promise<{ secure_url?: string; url?: string }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", cloudConfig.url);
+        xhr.timeout = 30 * 60 * 1000;
         xhr.upload.onprogress = (event) => {
           if (!event.lengthComputable || !event.total) return;
           const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
@@ -379,12 +388,21 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
           }
         };
         xhr.onerror = () => reject(new Error("Upload failed because the server could not be reached."));
+        xhr.ontimeout = () => reject(new Error("The upload timed out. Check your connection and try again."));
         xhr.send(formData);
       });
 
       const url = result.secure_url ?? result.url ?? "";
-      update("sources", [{ ...draft.sources?.[0], src: url, type: file.type || "video/mp4", label: draft.sources?.[0]?.label || "1080p" }]);
-      if (detectedDuration) update("duration", detectedDuration);
+      if (!url) throw new Error("The upload completed without a usable file URL. Try again.");
+
+      if (kind === "thumbnail") {
+        update("thumbnail", url);
+        update("poster", url);
+      } else {
+        const detectedDuration = await detectDuration(file);
+        update("sources", [{ ...draft.sources?.[0], src: url, type: file.type || "video/mp4", label: draft.sources?.[0]?.label || "1080p" }]);
+        if (detectedDuration) update("duration", detectedDuration);
+      }
     } catch (error) {
       setFormMessage(error instanceof Error ? error.message : "Upload failed because the server could not be reached.");
     } finally {
@@ -410,8 +428,8 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
         <label className={`admin-field ${errors.category ? "has-error" : ""}`}><span>Category *</span><input list="category-options" value={draft.category ?? ""} aria-invalid={Boolean(errors.category)} onChange={(event) => { update("category", event.target.value); clearError("category"); }} placeholder="Select or type a category" /><datalist id="category-options">{categories.filter((item) => item.slug !== "all").map((item) => <option key={item.slug} value={item.label} />)}</datalist>{errors.category && <small className="admin-field-error">{errors.category}</small>}</label>
 
         <div className="admin-form-section"><h3>Media</h3><p>Upload the project thumbnail and video. Duration is detected automatically from the video file.</p></div>
-        <label className={`admin-field wide ${errors.thumbnail ? "has-error" : ""}`}><span>Thumbnail image *</span><input disabled={busy || uploading} type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "thumbnail"); }} />{uploading && !uploadingVideo && <small className="admin-uploaded">Uploading image…</small>}{draft.thumbnail && !uploading && <small className="admin-uploaded">✓ Thumbnail uploaded</small>}{errors.thumbnail && <small className="admin-field-error">{errors.thumbnail}</small>}</label>
-        <label className={`admin-field wide ${errors.videoUrl ? "has-error" : ""}`}><span>Video file *</span><input disabled={busy || uploading} type="file" accept="video/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "video"); }} />{uploadingVideo && <small className="admin-uploaded">Uploading {uploadProgress}%</small>}{source.src && !uploading && <small className="admin-uploaded">✓ Video source added</small>}{errors.videoUrl && <small className="admin-field-error">{errors.videoUrl}</small>}</label>
+        <label className={`admin-field wide ${errors.thumbnail ? "has-error" : ""}`}><span>Thumbnail image *</span><input disabled={busy || uploading} type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "thumbnail"); }} />{uploading && !uploadingVideo && <UploadProgress value={uploadProgress} label="Uploading image" />}{draft.thumbnail && !uploading && <small className="admin-uploaded">✓ Thumbnail uploaded</small>}{errors.thumbnail && <small className="admin-field-error">{errors.thumbnail}</small>}</label>
+        <label className={`admin-field wide ${errors.videoUrl ? "has-error" : ""}`}><span>Video file *</span><input disabled={busy || uploading} type="file" accept="video/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "video"); }} />{uploadingVideo && <UploadProgress value={uploadProgress} label="Uploading video" />}{source.src && !uploading && <small className="admin-uploaded">✓ Video source added</small>}{errors.videoUrl && <small className="admin-field-error">{errors.videoUrl}</small>}</label>
         <Field label="Video MIME type" value={source.type ?? "video/mp4"} onChange={(value) => update("sources", [{ ...source, type: value }])} />
         <Field label="Quality label" value={source.label ?? "1080p"} onChange={(value) => update("sources", [{ ...source, label: value }])} />
         <label className="admin-check"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => update("featured", event.target.checked)} /><span><strong>Featured project</strong><small>Show this project in Selected Work on the homepage.</small></span></label>
@@ -419,6 +437,13 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
       <footer>{onDelete ? <button type="button" className="admin-delete" disabled={busy || uploading} onClick={() => void onDelete(draft)}>Delete project</button> : <span />}<div><button type="button" className="admin-cancel" onClick={handleClose}>Cancel</button><button className="admin-button" disabled={busy || uploading}>{uploading ? (uploadingVideo ? `Uploading ${uploadProgress}%…` : "Uploading…") : busy ? "Saving…" : "Save project"}</button></div></footer>
     </form>
   </div>;
+}
+
+function UploadProgress({ value, label }: { value: number; label: string }) {
+  return <span className="admin-upload-progress" role="status" aria-live="polite">
+    <span><span>{label}</span><strong>{value}%</strong></span>
+    <span className="admin-upload-track"><span style={{ width: `${value}%` }} /></span>
+  </span>;
 }
 
 function Field({ label, value, onChange, wide, name, error, ...props }: { label: string; value: string; onChange: (value: string) => void; wide?: boolean; name?: ProjectField; error?: string } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "name">) {
