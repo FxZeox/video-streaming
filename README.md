@@ -11,10 +11,10 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Replace the demo content
+## Portfolio content
 
 - Brand name, email, public URL, and social links: `src/lib/site.ts`
-- Projects, thumbnails, source URLs, roles, and tools: `src/data/projects.ts`
+- Projects: add and manage them from `/admin`
 - Services, process, and placeholder testimonials: `src/data/content.ts`
 - Local images: `public/images`
 
@@ -39,7 +39,19 @@ ADMIN_PASSWORD=use-a-strong-password
 ADMIN_SESSION_SECRET=use-a-long-random-secret
 ```
 
-The temporary dashboard stores edits in `data/admin-projects.json`. This works locally or on a persistent Node server. Vercel's runtime filesystem is ephemeral, so production admin edits on Vercel will require swapping `src/lib/project-store.ts` for a durable database adapter. Authentication and the dashboard UI can remain unchanged.
+Project metadata is stored in MongoDB. Uploaded thumbnails and videos are stored in Cloudinary; MongoDB stores only their secure Cloudinary URLs. Add these server-only values locally and in the hosting provider's environment settings:
+
+```bash
+MONGODB_URI=mongodb+srv://DATABASE_USERNAME:DATABASE_PASSWORD@your-cluster.mongodb.net/?appName=your-app
+MONGODB_DB=stream
+MONGODB_PROJECTS_COLLECTION=projects
+
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+```
+
+Never prefix MongoDB or Cloudinary secrets with `NEXT_PUBLIC_`; those variables are only read on the server. When `MONGODB_URI` is absent during local development, the project store falls back to a temporary local JSON file. Production should always configure MongoDB.
 
 ## Quality checks
 
