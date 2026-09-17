@@ -7,7 +7,7 @@ import type { PortfolioProject } from "@/data/projects";
 import { categories } from "@/data/categories";
 import { ArrowRight, Check, Close, Eye, EyeOff, Play } from "@/components/icons";
 import { siteConfig } from "@/lib/site";
-import { validateProject, type ProjectField, type ProjectFieldErrors } from "@/lib/project-validation";
+import { getVideoThumbnailUrl, validateProject, type ProjectField, type ProjectFieldErrors } from "@/lib/project-validation";
 
 type SaveResult = { ok: true } | { ok: false; message: string; fieldErrors?: ProjectFieldErrors };
 
@@ -213,9 +213,9 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
         <section className="admin-guide" aria-labelledby="publishing-guide-title">
           <div className="admin-guide-heading"><div><span>Quick guide</span><h2 id="publishing-guide-title">Publishing a project</h2></div><p>Complete these steps in order. Required fields are marked with an asterisk.</p></div>
           <ol>
-            <li><span>01</span><div><strong>Add the story</strong><p>Enter a clear title, project type, year, category, and both descriptions.</p></div></li>
-            <li><span>02</span><div><strong>Upload a thumbnail</strong><p>Use a 16:9 JPG, PNG, or WebP image. A 1600 × 900 image works best.</p></div></li>
-            <li><span>03</span><div><strong>Upload the video</strong><p>Choose an MP4 or WebM file. Keep this page open until the progress reaches 100%.</p></div></li>
+            <li><span>01</span><div><strong>Add the details</strong><p>Enter a clear title, year, category, and full project description.</p></div></li>
+            <li><span>02</span><div><strong>Choose a category</strong><p>Thumbnail projects use an image. Every other category uses a video.</p></div></li>
+            <li><span>03</span><div><strong>Upload the media</strong><p>Keep this page open until the upload progress reaches 100%.</p></div></li>
             <li><span>04</span><div><strong>Save and review</strong><p>Open “View website” to check the card and playback. Use Edit or Delete here anytime.</p></div></li>
           </ol>
         </section>
@@ -401,6 +401,11 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
       } else {
         const detectedDuration = await detectDuration(file);
         update("sources", [{ ...draft.sources?.[0], src: url, type: file.type || "video/mp4", label: draft.sources?.[0]?.label || "1080p" }]);
+        const generatedThumbnail = getVideoThumbnailUrl(url);
+        if (generatedThumbnail) {
+          update("thumbnail", generatedThumbnail);
+          update("poster", generatedThumbnail);
+        }
         if (detectedDuration) update("duration", detectedDuration);
       }
     } catch (error) {
@@ -421,16 +426,13 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
       <header><div><p className="admin-kicker">{onDelete ? "Edit project" : "New project"}</p><h2>{draft.title || "Untitled project"}</h2></div><button type="button" onClick={handleClose} aria-label="Close"><Close /></button></header>
       <div className="admin-form-body"><div className="admin-form-grid">
         {formMessage && <div className="admin-form-summary" role="alert">{formMessage}</div>}
-        <Field name="title" label="Project title *" value={draft.title} error={errors.title} onChange={(value) => { update("title", value); clearError("title"); if (!onDelete) { update("slug", autoSlug(value)); clearError("slug"); } }} />
-        <Field name="slug" label="URL slug *" value={draft.slug} error={errors.slug} onChange={(value) => { update("slug", autoSlug(value)); clearError("slug"); }} />
-        <Field name="eyebrow" label="Project type *" value={draft.eyebrow} error={errors.eyebrow} onChange={(value) => { update("eyebrow", value); clearError("eyebrow"); }} placeholder="Brand film" />
+        <Field name="title" label="Project title *" value={draft.title} error={errors.title} onChange={(value) => { update("title", value); clearError("title"); if (!onDelete) update("slug", autoSlug(value)); }} />
         <Field name="year" label="Year *" type="number" value={String(draft.year || "")} error={errors.year} onChange={(value) => { update("year", Number(value)); clearError("year"); }} />
-        <Field name="description" label="Card description *" value={draft.description} error={errors.description} onChange={(value) => { update("description", value); clearError("description"); }} wide />
         <TextField name="longDescription" label="Full project description *" value={draft.longDescription} error={errors.longDescription} onChange={(value) => { update("longDescription", value); clearError("longDescription"); }} />
         <label className={`admin-field ${errors.category ? "has-error" : ""}`}><span>Category *</span><input list="category-options" value={draft.category ?? ""} aria-invalid={Boolean(errors.category)} onChange={(event) => { update("category", event.target.value); clearError("category"); }} placeholder="Select or type a category" /><datalist id="category-options">{categories.filter((item) => item.slug !== "all").map((item) => <option key={item.slug} value={item.label} />)}</datalist>{errors.category && <small className="admin-field-error">{errors.category}</small>}</label>
 
-        <div className="admin-form-section"><h3>Media</h3><p>{isThumbnailOnlyProject ? "Upload a thumbnail for this category." : "Upload the project thumbnail and video. Duration is detected automatically from the video file."}</p></div>
-        <label className={`admin-field wide ${errors.thumbnail ? "has-error" : ""}`}><span>Thumbnail image *</span><input disabled={busy || uploading} type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "thumbnail"); }} />{uploading && !uploadingVideo && <UploadProgress value={uploadProgress} label="Uploading image" />}{draft.thumbnail && !uploading && <small className="admin-uploaded">✓ Thumbnail uploaded</small>}{errors.thumbnail && <small className="admin-field-error">{errors.thumbnail}</small>}</label>
+        <div className="admin-form-section"><h3>Media</h3><p>{isThumbnailOnlyProject ? "Upload the image for this thumbnail project." : "Upload the project video. Its preview image and duration are generated automatically."}</p></div>
+        {isThumbnailOnlyProject && <label className={`admin-field wide ${errors.thumbnail ? "has-error" : ""}`}><span>Thumbnail image *</span><input disabled={busy || uploading} type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "thumbnail"); }} />{uploading && !uploadingVideo && <UploadProgress value={uploadProgress} label="Uploading image" />}{draft.thumbnail && !uploading && <small className="admin-uploaded">✓ Thumbnail uploaded</small>}{errors.thumbnail && <small className="admin-field-error">{errors.thumbnail}</small>}</label>}
         {!isThumbnailOnlyProject && <label className={`admin-field wide ${errors.videoUrl ? "has-error" : ""}`}><span>Video file *</span><input disabled={busy || uploading} type="file" accept="video/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "video"); }} />{uploadingVideo && <UploadProgress value={uploadProgress} label="Uploading video" />}{source.src && !uploading && <small className="admin-uploaded">✓ Video source added</small>}{errors.videoUrl && <small className="admin-field-error">{errors.videoUrl}</small>}</label>}
         {!isThumbnailOnlyProject && <Field label="Video MIME type" value={source.type ?? "video/mp4"} onChange={(value) => update("sources", [{ ...source, type: value }])} />}
         {!isThumbnailOnlyProject && <Field label="Quality label" value={source.label ?? "1080p"} onChange={(value) => update("sources", [{ ...source, label: value }])} />}
