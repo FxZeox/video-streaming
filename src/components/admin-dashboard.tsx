@@ -11,6 +11,109 @@ import { getVideoThumbnailUrl, validateProject, type ProjectField, type ProjectF
 
 type SaveResult = { ok: true } | { ok: false; message: string; fieldErrors?: ProjectFieldErrors };
 
+type CloudinaryUploadConfig = {
+  url: string;
+  uploadPreset?: string | null;
+  apiKey?: string | null;
+  timestamp?: number;
+  signature?: string | null;
+  accountPlan?: string | null;
+  plan?: string | null;
+  maxVideoBytes?: number | null;
+};
+
+type CloudinaryUploadResult = {
+  secure_url?: string;
+  url?: string;
+  done?: boolean;
+  error?: { message?: string };
+};
+
+const LARGE_UPLOAD_THRESHOLD = 100 * 1024 * 1024;
+const UPLOAD_CHUNK_SIZE = 20 * 1024 * 1024;
+
+function formatFileSize(bytes: number) {
+  const megabytes = bytes / (1024 * 1024);
+  return `${megabytes >= 100 ? Math.round(megabytes) : megabytes.toFixed(1)} MB`;
+}
+
+function uploadFormData(file: Blob, filename: string, config: CloudinaryUploadConfig) {
+  const data = new FormData();
+  data.append("file", file, filename);
+  if (config.uploadPreset) {
+    data.append("upload_preset", config.uploadPreset);
+  } else {
+    data.append("api_key", String(config.apiKey));
+    data.append("timestamp", String(config.timestamp));
+    data.append("signature", String(config.signature));
+  }
+  return data;
+}
+
+function sendUploadRequest({ url, data, headers, timeout, onProgress }: {
+  url: string;
+  data: FormData;
+  headers?: Record<string, string>;
+  timeout: number;
+  onProgress: (loaded: number, total: number) => void;
+}) {
+  return new Promise<CloudinaryUploadResult>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.timeout = timeout;
+    for (const [name, value] of Object.entries(headers ?? {})) xhr.setRequestHeader(name, value);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(event.loaded, event.total);
+    };
+    xhr.onload = () => {
+      let payload: CloudinaryUploadResult = {};
+      try { payload = JSON.parse(xhr.responseText || "{}"); } catch { /* handled below */ }
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(payload);
+      const detail = payload.error?.message ?? `Cloudinary rejected the upload (HTTP ${xhr.status}).`;
+      reject(new Error(detail));
+    };
+    xhr.onerror = () => reject(new Error("The upload connection was interrupted. Check your internet connection and retry."));
+    xhr.ontimeout = () => reject(new Error("The upload timed out. Check your connection and retry."));
+    xhr.send(data);
+  });
+}
+
+async function uploadInChunks(file: File, config: CloudinaryUploadConfig, url: string, onPercent: (percent: number) => void) {
+  const uploadId = crypto.randomUUID();
+  let finalResult: CloudinaryUploadResult = {};
+
+  for (let start = 0; start < file.size; start += UPLOAD_CHUNK_SIZE) {
+    const end = Math.min(start + UPLOAD_CHUNK_SIZE, file.size);
+    const chunk = file.slice(start, end, file.type);
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        finalResult = await sendUploadRequest({
+          url,
+          data: uploadFormData(chunk, file.name, config),
+          headers: {
+            "Content-Range": `bytes ${start}-${end - 1}/${file.size}`,
+            "X-Unique-Upload-Id": uploadId,
+          },
+          timeout: 10 * 60 * 1000,
+          onProgress: (loaded) => onPercent(Math.min(99, Math.round(((start + loaded) / file.size) * 100))),
+        });
+        lastError = undefined;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 3) await new Promise((resolve) => window.setTimeout(resolve, attempt * 750));
+      }
+    }
+
+    if (lastError) throw lastError;
+  }
+
+  onPercent(100);
+  return finalResult;
+}
+
 const emptyProject = (): PortfolioProject => ({
   id: crypto.randomUUID(),
   slug: "",
@@ -350,47 +453,30 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
       }
 
       const cloudConfigResponse = await fetch("/api/admin/upload", { method: "GET" });
-      const cloudConfig = await cloudConfigResponse.json();
+      const cloudConfig = await cloudConfigResponse.json() as CloudinaryUploadConfig & { error?: string };
       if (!cloudConfigResponse.ok) throw new Error(cloudConfig.error ?? "Upload configuration is unavailable.");
       if (!cloudConfig.url || (!cloudConfig.uploadPreset && (!cloudConfig.apiKey || !cloudConfig.signature))) {
         throw new Error("Upload configuration is incomplete. Check the Cloudinary environment variables.");
       }
 
-      const formData = new FormData();
-      formData.append("file", file);
-      if (cloudConfig.uploadPreset) {
-        formData.append("upload_preset", cloudConfig.uploadPreset);
-      } else {
-        formData.append("api_key", cloudConfig.apiKey);
-        formData.append("timestamp", String(cloudConfig.timestamp));
-        formData.append("signature", cloudConfig.signature);
+      if (kind === "video" && cloudConfig.maxVideoBytes && file.size > cloudConfig.maxVideoBytes) {
+        const planName = cloudConfig.plan ? `${cloudConfig.plan} plan` : "current plan";
+        throw new Error(
+          `This video is ${formatFileSize(file.size)}, but your Cloudinary ${planName} allows up to ${formatFileSize(cloudConfig.maxVideoBytes)} per video. Compress the file below that limit or upgrade Cloudinary before uploading.`,
+        );
       }
 
-      const result = await new Promise<{ secure_url?: string; url?: string }>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", cloudConfig.url);
-        xhr.timeout = 30 * 60 * 1000;
-        xhr.upload.onprogress = (event) => {
-          if (!event.lengthComputable || !event.total) return;
-          const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
-          setUploadProgress(percent);
-        };
-        xhr.onload = () => {
-          try {
-            const payload = JSON.parse(xhr.responseText || "{}") as { secure_url?: string; url?: string; error?: { message?: string } };
-            if (xhr.status >= 200 && xhr.status < 300) {
-              setUploadProgress(100);
-              return resolve(payload);
-            }
-            reject(new Error(payload?.error?.message ?? "Upload failed."));
-          } catch {
-            reject(new Error("Upload failed."));
-          }
-        };
-        xhr.onerror = () => reject(new Error("Upload failed because the server could not be reached."));
-        xhr.ontimeout = () => reject(new Error("The upload timed out. Check your connection and try again."));
-        xhr.send(formData);
-      });
+      const resourceUrl = cloudConfig.url.replace("/auto/upload", kind === "video" ? "/video/upload" : "/image/upload");
+      const result = kind === "video" && file.size > LARGE_UPLOAD_THRESHOLD
+        ? await uploadInChunks(file, cloudConfig, resourceUrl, setUploadProgress)
+        : await sendUploadRequest({
+          url: resourceUrl,
+          data: uploadFormData(file, file.name, cloudConfig),
+          timeout: 30 * 60 * 1000,
+          onProgress: (loaded, total) => {
+            if (total) setUploadProgress(Math.max(0, Math.min(100, Math.round((loaded / total) * 100))));
+          },
+        });
 
       const url = result.secure_url ?? result.url ?? "";
       if (!url) throw new Error("The upload completed without a usable file URL. Try again.");
