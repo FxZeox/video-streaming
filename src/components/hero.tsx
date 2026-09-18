@@ -15,7 +15,7 @@ export function Hero() {
       <div className="hero-grain" />
       <div className="container hero-content">
         {siteConfig.heroKicker ? <p className="kicker reveal">{siteConfig.heroKicker}</p> : null}
-        <h1 className="reveal reveal-delay-1">Films that make<br />people <em>feel.</em></h1>
+        <h1 className="reveal reveal-delay-1">Films that make<br />people feel.</h1>
         <div className="hero-lower reveal reveal-delay-2">
           <p>Professional video editing for creators, brands, and businesses that care about every frame.</p>
           <div className="hero-actions"><Link className="button button-primary" href="/work">View my work <ArrowRight /></Link></div>

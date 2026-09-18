@@ -21,14 +21,23 @@ export function VideoPlayer(props: VideoPlayerProps) {
 }
 
 function YouTubePlayer({ poster, title, videoId }: VideoPlayerProps & { videoId: string }) {
-  const [activated, setActivated] = useState(false);
+  const [embedUrl, setEmbedUrl] = useState("");
+  const startYouTube = () => {
+    const params = new URLSearchParams({
+      autoplay: "1",
+      rel: "0",
+      origin: window.location.origin,
+      widget_referrer: window.location.href,
+    });
+    setEmbedUrl(`https://www.youtube.com/embed/${videoId}?${params.toString()}`);
+  };
   return <div className="video-player youtube-player" aria-label={`${title} YouTube video player`}>
-    {!activated ? <>
+    {!embedUrl ? <>
       <Image src={poster} alt={`${title} video poster`} fill priority sizes="100vw" unoptimized />
       <span className="player-shade" />
-      <button className="player-launch" onClick={() => setActivated(true)} aria-label={`Play ${title}`}><Play /><span>Play film</span></button>
+      <button className="player-launch" onClick={startYouTube} aria-label={`Play ${title}`}><Play /><span>Play film</span></button>
     </> : <iframe
-      src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
+      src={embedUrl}
       title={`${title} on YouTube`}
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
       referrerPolicy="strict-origin-when-cross-origin"

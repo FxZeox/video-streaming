@@ -1,10 +1,10 @@
 export const siteConfig = {
   name: "Evol Visuals",
-  editorName: "Evol Visuals",
+  editorName: "Evol Hoshino",
   email: "evolai143@gmail.com",
   heroKicker: "",
   description:
-    "Independent video editor crafting films with rhythm, feeling, and a point of view.",
+    "Video editor crafting films with rhythm, feeling, and a point of view.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://evolvisuals.com",
   profileImageUrl: process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "/images/profile-portrait.png",
   ogImageUrl: process.env.NEXT_PUBLIC_OG_IMAGE_URL ?? process.env.NEXT_PUBLIC_PROFILE_IMAGE_URL ?? "/images/profile-portrait.png",
