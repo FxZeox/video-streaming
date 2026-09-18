@@ -5,6 +5,7 @@ import type { PortfolioProject } from "@/data/projects";
 
 export function VideoCard({ project, large = false, priority = false }: { project: PortfolioProject; large?: boolean; priority?: boolean }) {
   const hasVideo = (project.sources ?? []).some((source) => Boolean(source?.src));
+  const hasDuration = Boolean(project.duration && project.duration !== "00:00");
   return (
     <article className={`video-card ${large ? "video-card-large" : ""}`}>
       <Link href={`/work/${project.slug}`} className="video-card-media" aria-label={`View ${project.title}`}>
@@ -12,7 +13,7 @@ export function VideoCard({ project, large = false, priority = false }: { projec
         <span className="media-shade" />
         {hasVideo && <span className="play-orb"><Play /></span>}
         {project.featured && <span className="featured-badge">Selected</span>}
-        {hasVideo && <span className="duration-badge">{project.duration}</span>}
+        {hasVideo && hasDuration && <span className="duration-badge">{project.duration}</span>}
       </Link>
       <div className="video-card-copy">
         <div><p className="card-eyebrow">{project.eyebrow} · {project.year}</p><h3>{project.title}</h3><p>{project.description}</p></div>

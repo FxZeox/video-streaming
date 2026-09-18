@@ -25,9 +25,7 @@ NEXT_PUBLIC_SITE_URL=https://portfolio.example.com
 NEXT_PUBLIC_VIDEO_BASE_URL=https://video.example.com
 ```
 
-With that setting, `videoAsset("videos/film.mp4")` resolves to `https://video.example.com/videos/film.mp4`. Without it, assets resolve against the local Next.js origin. The included small WebM file is only a functional development preview; it is not portfolio content.
-
-The `sources` array on each project can contain MP4/WebM variants today and can later be adapted for quality selection or HLS without changing cards or page layouts.
+The included small WebM file is only a functional development preview for legacy/self-hosted project records; new video projects use YouTube embeds.
 
 ## Private project admin
 
@@ -39,7 +37,7 @@ ADMIN_PASSWORD=use-a-strong-password
 ADMIN_SESSION_SECRET=use-a-long-random-secret
 ```
 
-Project metadata is stored in MongoDB. Uploaded thumbnails and videos are stored in Cloudinary; MongoDB stores only their secure Cloudinary URLs. Add these server-only values locally and in the hosting provider's environment settings:
+Project metadata and YouTube links are stored in MongoDB. Videos are uploaded to YouTube as Unlisted, while image-only projects in the Thumbnail category are stored in Cloudinary. Add these server-only values locally and in the hosting provider's environment settings:
 
 ```bash
 MONGODB_URI=mongodb+srv://DATABASE_USERNAME:DATABASE_PASSWORD@your-cluster.mongodb.net/?appName=your-app

@@ -27,20 +27,32 @@ function isThumbnailOnlyCategory(category: string) {
   return normalized === "thumbnail" || normalized.includes("thumbnail");
 }
 
-export function getVideoThumbnailUrl(videoUrl: string) {
+export function getYouTubeVideoId(videoUrl: string) {
   try {
     const url = new URL(videoUrl);
-    if (!url.hostname.toLowerCase().endsWith("cloudinary.com")) return "";
-    const parts = url.pathname.split("/").filter(Boolean);
-    const uploadIndex = parts.findIndex((part, index) => part === "upload" && parts[index - 1] === "video");
-    if (uploadIndex < 0 || !parts[uploadIndex + 1]) return "";
-    parts.splice(uploadIndex + 1, 0, "so_0,f_jpg");
-    parts[parts.length - 1] = parts[parts.length - 1].replace(/\.[^/.]+$/, ".jpg");
-    url.pathname = `/${parts.join("/")}`;
-    return url.toString();
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    let candidate = "";
+    if (host === "youtu.be") candidate = url.pathname.split("/").filter(Boolean)[0] ?? "";
+    if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+      candidate = url.searchParams.get("v") ?? "";
+      if (!candidate) {
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (["embed", "shorts", "live"].includes(parts[0])) candidate = parts[1] ?? "";
+      }
+    }
+    if (host === "youtube-nocookie.com" || host.endsWith(".youtube-nocookie.com")) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts[0] === "embed") candidate = parts[1] ?? "";
+    }
+    return /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : "";
   } catch {
     return "";
   }
+}
+
+export function getYouTubeThumbnailUrl(videoUrl: string) {
+  const videoId = getYouTubeVideoId(videoUrl);
+  return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "";
 }
 
 function validMediaLocation(value: string) {
@@ -66,13 +78,15 @@ export function validateProject(input: unknown): ProjectValidationResult {
   const uploadedThumbnail = text(item.thumbnail);
   const year = Number(item.year);
   const isThumbnailOnly = isThumbnailOnlyCategory(category);
-  const videoUrl = text(item.sources?.[0]?.src);
+  const submittedVideoUrl = text(item.sources?.[0]?.src);
+  const youtubeVideoId = getYouTubeVideoId(submittedVideoUrl);
+  const videoUrl = youtubeVideoId ? `https://www.youtube.com/watch?v=${youtubeVideoId}` : submittedVideoUrl;
   const slug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(requestedSlug)
     ? requestedSlug
     : title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   const eyebrow = text(item.eyebrow) || category || "Project";
   const description = (text(item.description) || longDescription).slice(0, 400);
-  const generatedThumbnail = getVideoThumbnailUrl(videoUrl);
+  const generatedThumbnail = getYouTubeThumbnailUrl(videoUrl);
   const thumbnail = isThumbnailOnly ? uploadedThumbnail : generatedThumbnail || uploadedThumbnail;
   const poster = isThumbnailOnly ? text(item.poster) || thumbnail : thumbnail;
   const errors: ProjectFieldErrors = {};
@@ -94,9 +108,9 @@ export function validateProject(input: unknown): ProjectValidationResult {
   }
 
   if (!isThumbnailOnly) {
-    if (!videoUrl) errors.videoUrl = "Upload a video before saving.";
-    else if (!validMediaLocation(videoUrl)) errors.videoUrl = "Video must be an HTTPS URL or a local /path.";
-    else if (!thumbnail) errors.videoUrl = "This video could not generate a preview image. Upload it again and retry.";
+    if (!videoUrl) errors.videoUrl = "Paste the unlisted YouTube video link before saving.";
+    else if (!youtubeVideoId) errors.videoUrl = "Enter a valid YouTube, YouTube Shorts, or youtu.be link.";
+    else if (!thumbnail) errors.videoUrl = "The YouTube thumbnail could not be generated. Check the link and retry.";
   }
 
   if (Object.keys(errors).length) return { success: false, errors };
@@ -113,7 +127,7 @@ export function validateProject(input: unknown): ProjectValidationResult {
       longDescription,
       thumbnail,
       poster,
-      sources: [{ src: isThumbnailOnly ? "" : videoUrl, type: text(firstSource?.type) || "video/mp4", label: text(firstSource?.label) || "Original" }],
+      sources: [{ src: isThumbnailOnly ? "" : videoUrl, type: isThumbnailOnly ? text(firstSource?.type) || "video/mp4" : "video/youtube", label: isThumbnailOnly ? text(firstSource?.label) || "Original" : "YouTube" }],
       duration: duration || "00:00",
       year,
       role: role || "Video editing",

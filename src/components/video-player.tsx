@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Expand, Pause, Play, Volume, VolumeOff } from "@/components/icons";
 import type { VideoSource } from "@/data/projects";
+import { getYouTubeVideoId } from "@/lib/project-validation";
 
 function formatTime(value: number) {
   if (!Number.isFinite(value)) return "0:00";
@@ -12,7 +13,31 @@ function formatTime(value: number) {
   return `${minutes}:${seconds}`;
 }
 
-export function VideoPlayer({ poster, sources, title }: { poster: string; sources: VideoSource[]; title: string }) {
+type VideoPlayerProps = { poster: string; sources: VideoSource[]; title: string };
+
+export function VideoPlayer(props: VideoPlayerProps) {
+  const youtubeId = getYouTubeVideoId(props.sources.find((source) => source.src)?.src ?? "");
+  return youtubeId ? <YouTubePlayer {...props} videoId={youtubeId} /> : <NativeVideoPlayer {...props} />;
+}
+
+function YouTubePlayer({ poster, title, videoId }: VideoPlayerProps & { videoId: string }) {
+  const [activated, setActivated] = useState(false);
+  return <div className="video-player youtube-player" aria-label={`${title} YouTube video player`}>
+    {!activated ? <>
+      <Image src={poster} alt={`${title} video poster`} fill priority sizes="100vw" unoptimized />
+      <span className="player-shade" />
+      <button className="player-launch" onClick={() => setActivated(true)} aria-label={`Play ${title}`}><Play /><span>Play film</span></button>
+    </> : <iframe
+      src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
+      title={`${title} on YouTube`}
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerPolicy="strict-origin-when-cross-origin"
+      allowFullScreen
+    />}
+  </div>;
+}
+
+function NativeVideoPlayer({ poster, sources, title }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const [activated, setActivated] = useState(false);

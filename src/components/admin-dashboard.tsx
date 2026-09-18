@@ -7,7 +7,7 @@ import type { PortfolioProject } from "@/data/projects";
 import { categories } from "@/data/categories";
 import { ArrowRight, Check, Close, Eye, EyeOff, Play } from "@/components/icons";
 import { siteConfig } from "@/lib/site";
-import { getVideoThumbnailUrl, validateProject, type ProjectField, type ProjectFieldErrors } from "@/lib/project-validation";
+import { getYouTubeThumbnailUrl, validateProject, type ProjectField, type ProjectFieldErrors } from "@/lib/project-validation";
 
 type SaveResult = { ok: true } | { ok: false; message: string; fieldErrors?: ProjectFieldErrors };
 
@@ -17,25 +17,13 @@ type CloudinaryUploadConfig = {
   apiKey?: string | null;
   timestamp?: number;
   signature?: string | null;
-  accountPlan?: string | null;
-  plan?: string | null;
-  maxVideoBytes?: number | null;
 };
 
 type CloudinaryUploadResult = {
   secure_url?: string;
   url?: string;
-  done?: boolean;
   error?: { message?: string };
 };
-
-const LARGE_UPLOAD_THRESHOLD = 100 * 1024 * 1024;
-const UPLOAD_CHUNK_SIZE = 20 * 1024 * 1024;
-
-function formatFileSize(bytes: number) {
-  const megabytes = bytes / (1024 * 1024);
-  return `${megabytes >= 100 ? Math.round(megabytes) : megabytes.toFixed(1)} MB`;
-}
 
 function uploadFormData(file: Blob, filename: string, config: CloudinaryUploadConfig) {
   const data = new FormData();
@@ -50,10 +38,9 @@ function uploadFormData(file: Blob, filename: string, config: CloudinaryUploadCo
   return data;
 }
 
-function sendUploadRequest({ url, data, headers, timeout, onProgress }: {
+function sendUploadRequest({ url, data, timeout, onProgress }: {
   url: string;
   data: FormData;
-  headers?: Record<string, string>;
   timeout: number;
   onProgress: (loaded: number, total: number) => void;
 }) {
@@ -61,7 +48,6 @@ function sendUploadRequest({ url, data, headers, timeout, onProgress }: {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
     xhr.timeout = timeout;
-    for (const [name, value] of Object.entries(headers ?? {})) xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(event.loaded, event.total);
     };
@@ -76,42 +62,6 @@ function sendUploadRequest({ url, data, headers, timeout, onProgress }: {
     xhr.ontimeout = () => reject(new Error("The upload timed out. Check your connection and retry."));
     xhr.send(data);
   });
-}
-
-async function uploadInChunks(file: File, config: CloudinaryUploadConfig, url: string, onPercent: (percent: number) => void) {
-  const uploadId = crypto.randomUUID();
-  let finalResult: CloudinaryUploadResult = {};
-
-  for (let start = 0; start < file.size; start += UPLOAD_CHUNK_SIZE) {
-    const end = Math.min(start + UPLOAD_CHUNK_SIZE, file.size);
-    const chunk = file.slice(start, end, file.type);
-    let lastError: unknown;
-
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      try {
-        finalResult = await sendUploadRequest({
-          url,
-          data: uploadFormData(chunk, file.name, config),
-          headers: {
-            "Content-Range": `bytes ${start}-${end - 1}/${file.size}`,
-            "X-Unique-Upload-Id": uploadId,
-          },
-          timeout: 10 * 60 * 1000,
-          onProgress: (loaded) => onPercent(Math.min(99, Math.round(((start + loaded) / file.size) * 100))),
-        });
-        lastError = undefined;
-        break;
-      } catch (error) {
-        lastError = error;
-        if (attempt < 3) await new Promise((resolve) => window.setTimeout(resolve, attempt * 750));
-      }
-    }
-
-    if (lastError) throw lastError;
-  }
-
-  onPercent(100);
-  return finalResult;
 }
 
 const emptyProject = (): PortfolioProject => ({
@@ -317,8 +267,8 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
           <div className="admin-guide-heading"><div><span>Quick guide</span><h2 id="publishing-guide-title">Publishing a project</h2></div><p>Complete these steps in order. Required fields are marked with an asterisk.</p></div>
           <ol>
             <li><span>01</span><div><strong>Add the details</strong><p>Enter a clear title, year, category, and full project description.</p></div></li>
-            <li><span>02</span><div><strong>Choose a category</strong><p>Thumbnail projects use an image. Every other category uses a video.</p></div></li>
-            <li><span>03</span><div><strong>Upload the media</strong><p>Keep this page open until the upload progress reaches 100%.</p></div></li>
+            <li><span>02</span><div><strong>Prepare the media</strong><p>Upload videos to YouTube as Unlisted. Thumbnail projects still use an image.</p></div></li>
+            <li><span>03</span><div><strong>Add the media</strong><p>Paste the YouTube share link, or upload an image for the Thumbnail category.</p></div></li>
             <li><span>04</span><div><strong>Save and review</strong><p>Open “View website” to check the card and playback. Use Edit or Delete here anytime.</p></div></li>
           </ol>
         </section>
@@ -354,7 +304,6 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
     }
   });
   const [uploading, setUploading] = useState(false);
-  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [formMessage, setFormMessage] = useState("");
 
@@ -392,33 +341,6 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
     };
   }, [persistDraft]);
 
-  function detectDuration(file: File) {
-    return new Promise<string>((resolve) => {
-      const url = URL.createObjectURL(file);
-      const video = document.createElement("video");
-      let finished = false;
-      const timeout = window.setTimeout(() => finish(""), 10000);
-      const finish = (value: string) => {
-        if (finished) return;
-        finished = true;
-        window.clearTimeout(timeout);
-        URL.revokeObjectURL(url);
-        video.removeAttribute("src");
-        resolve(value);
-      };
-      video.preload = "metadata";
-      video.onloadedmetadata = () => {
-        const total = Math.max(0, Math.round(video.duration));
-        const hours = Math.floor(total / 3600);
-        const minutes = Math.floor((total % 3600) / 60);
-        const seconds = String(total % 60).padStart(2, "0");
-        finish(hours ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`);
-      };
-      video.onerror = () => finish("");
-      video.src = url;
-    });
-  }
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -438,19 +360,15 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
     }
   }
 
-  async function upload(file: File, kind: "thumbnail" | "video") {
+  async function uploadThumbnail(file: File) {
     setUploading(true);
-    setUploadingVideo(kind === "video");
     setUploadProgress(0);
     setFormMessage("");
-    clearError(kind === "thumbnail" ? "thumbnail" : "videoUrl");
+    clearError("thumbnail");
 
     try {
       if (file.size === 0) throw new Error("The selected file is empty. Choose another file.");
-      const expectedType = kind === "thumbnail" ? "image/" : "video/";
-      if (!file.type.startsWith(expectedType)) {
-        throw new Error(kind === "thumbnail" ? "Choose a valid image file." : "Choose a valid video file.");
-      }
+      if (!file.type.startsWith("image/")) throw new Error("Choose a valid image file.");
 
       const cloudConfigResponse = await fetch("/api/admin/upload", { method: "GET" });
       const cloudConfig = await cloudConfigResponse.json() as CloudinaryUploadConfig & { error?: string };
@@ -459,46 +377,25 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
         throw new Error("Upload configuration is incomplete. Check the Cloudinary environment variables.");
       }
 
-      if (kind === "video" && cloudConfig.maxVideoBytes && file.size > cloudConfig.maxVideoBytes) {
-        const planName = cloudConfig.plan ? `${cloudConfig.plan} plan` : "current plan";
-        throw new Error(
-          `This video is ${formatFileSize(file.size)}, but your Cloudinary ${planName} allows up to ${formatFileSize(cloudConfig.maxVideoBytes)} per video. Compress the file below that limit or upgrade Cloudinary before uploading.`,
-        );
-      }
-
-      const resourceUrl = cloudConfig.url.replace("/auto/upload", kind === "video" ? "/video/upload" : "/image/upload");
-      const result = kind === "video" && file.size > LARGE_UPLOAD_THRESHOLD
-        ? await uploadInChunks(file, cloudConfig, resourceUrl, setUploadProgress)
-        : await sendUploadRequest({
-          url: resourceUrl,
-          data: uploadFormData(file, file.name, cloudConfig),
-          timeout: 30 * 60 * 1000,
-          onProgress: (loaded, total) => {
-            if (total) setUploadProgress(Math.max(0, Math.min(100, Math.round((loaded / total) * 100))));
-          },
-        });
+      const resourceUrl = cloudConfig.url.replace("/auto/upload", "/image/upload");
+      const result = await sendUploadRequest({
+        url: resourceUrl,
+        data: uploadFormData(file, file.name, cloudConfig),
+        timeout: 10 * 60 * 1000,
+        onProgress: (loaded, total) => {
+          if (total) setUploadProgress(Math.max(0, Math.min(100, Math.round((loaded / total) * 100))));
+        },
+      });
 
       const url = result.secure_url ?? result.url ?? "";
       if (!url) throw new Error("The upload completed without a usable file URL. Try again.");
 
-      if (kind === "thumbnail") {
-        update("thumbnail", url);
-        update("poster", url);
-      } else {
-        const detectedDuration = await detectDuration(file);
-        update("sources", [{ ...draft.sources?.[0], src: url, type: file.type || "video/mp4", label: draft.sources?.[0]?.label || "1080p" }]);
-        const generatedThumbnail = getVideoThumbnailUrl(url);
-        if (generatedThumbnail) {
-          update("thumbnail", generatedThumbnail);
-          update("poster", generatedThumbnail);
-        }
-        if (detectedDuration) update("duration", detectedDuration);
-      }
+      update("thumbnail", url);
+      update("poster", url);
     } catch (error) {
       setFormMessage(error instanceof Error ? error.message : "Upload failed because the server could not be reached.");
     } finally {
       setUploading(false);
-      setUploadingVideo(false);
       setTimeout(() => setUploadProgress(0), 600);
     }
   }
@@ -517,14 +414,18 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
         <TextField name="longDescription" label="Full project description *" value={draft.longDescription} error={errors.longDescription} onChange={(value) => { update("longDescription", value); clearError("longDescription"); }} />
         <label className={`admin-field ${errors.category ? "has-error" : ""}`}><span>Category *</span><input list="category-options" value={draft.category ?? ""} aria-invalid={Boolean(errors.category)} onChange={(event) => { update("category", event.target.value); clearError("category"); }} placeholder="Select or type a category" /><datalist id="category-options">{categories.filter((item) => item.slug !== "all").map((item) => <option key={item.slug} value={item.label} />)}</datalist>{errors.category && <small className="admin-field-error">{errors.category}</small>}</label>
 
-        <div className="admin-form-section"><h3>Media</h3><p>{isThumbnailOnlyProject ? "Upload the image for this thumbnail project." : "Upload the project video. Its preview image and duration are generated automatically."}</p></div>
-        {isThumbnailOnlyProject && <label className={`admin-field wide ${errors.thumbnail ? "has-error" : ""}`}><span>Thumbnail image *</span><input disabled={busy || uploading} type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "thumbnail"); }} />{uploading && !uploadingVideo && <UploadProgress value={uploadProgress} label="Uploading image" />}{draft.thumbnail && !uploading && <small className="admin-uploaded">✓ Thumbnail uploaded</small>}{errors.thumbnail && <small className="admin-field-error">{errors.thumbnail}</small>}</label>}
-        {!isThumbnailOnlyProject && <label className={`admin-field wide ${errors.videoUrl ? "has-error" : ""}`}><span>Video file *</span><input disabled={busy || uploading} type="file" accept="video/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, "video"); }} />{uploadingVideo && <UploadProgress value={uploadProgress} label="Uploading video" />}{source.src && !uploading && <small className="admin-uploaded">✓ Video source added</small>}{errors.videoUrl && <small className="admin-field-error">{errors.videoUrl}</small>}</label>}
-        {!isThumbnailOnlyProject && <Field label="Video MIME type" value={source.type ?? "video/mp4"} onChange={(value) => update("sources", [{ ...source, type: value }])} />}
-        {!isThumbnailOnlyProject && <Field label="Quality label" value={source.label ?? "1080p"} onChange={(value) => update("sources", [{ ...source, label: value }])} />}
+        <div className="admin-form-section"><h3>Media</h3><p>{isThumbnailOnlyProject ? "Upload the image for this thumbnail project." : "Upload the video to YouTube as Unlisted, enable embedding, then paste its share link below."}</p></div>
+        {isThumbnailOnlyProject && <label className={`admin-field wide ${errors.thumbnail ? "has-error" : ""}`}><span>Thumbnail image *</span><input disabled={busy || uploading} type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void uploadThumbnail(file); }} />{uploading && <UploadProgress value={uploadProgress} label="Uploading image" />}{draft.thumbnail && !uploading && <small className="admin-uploaded">✓ Thumbnail uploaded</small>}{errors.thumbnail && <small className="admin-field-error">{errors.thumbnail}</small>}</label>}
+        {!isThumbnailOnlyProject && <label className={`admin-field wide ${errors.videoUrl ? "has-error" : ""}`}><span>Unlisted YouTube link *</span><input type="url" inputMode="url" value={source.src} aria-invalid={Boolean(errors.videoUrl)} placeholder="https://youtu.be/VIDEO_ID" onChange={(event) => {
+          const url = event.target.value;
+          update("sources", [{ src: url, type: "video/youtube", label: "YouTube" }]);
+          const thumbnail = getYouTubeThumbnailUrl(url);
+          if (thumbnail) { update("thumbnail", thumbnail); update("poster", thumbnail); }
+          clearError("videoUrl");
+        }} /><small className="admin-field-note">In YouTube Studio choose Visibility → Unlisted. Anyone with this link can watch the embedded video.</small>{source.src && !errors.videoUrl && <small className="admin-uploaded">✓ YouTube link added</small>}{errors.videoUrl && <small className="admin-field-error">{errors.videoUrl}</small>}</label>}
         <label className="admin-check"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => update("featured", event.target.checked)} /><span><strong>Featured project</strong><small>Show this project in Selected Work on the homepage.</small></span></label>
       </div></div>
-      <footer>{onDelete ? <button type="button" className="admin-delete" disabled={busy || uploading} onClick={() => void onDelete(draft)}>Delete project</button> : <span />}<div><button type="button" className="admin-cancel" onClick={handleClose}>Cancel</button><button className="admin-button" disabled={busy || uploading}>{uploading ? (uploadingVideo ? `Uploading ${uploadProgress}%…` : "Uploading…") : busy ? "Saving…" : "Save project"}</button></div></footer>
+      <footer>{onDelete ? <button type="button" className="admin-delete" disabled={busy || uploading} onClick={() => void onDelete(draft)}>Delete project</button> : <span />}<div><button type="button" className="admin-cancel" onClick={handleClose}>Cancel</button><button className="admin-button" disabled={busy || uploading}>{uploading ? `Uploading image ${uploadProgress}%…` : busy ? "Saving…" : "Save project"}</button></div></footer>
     </form>
   </div>;
 }
