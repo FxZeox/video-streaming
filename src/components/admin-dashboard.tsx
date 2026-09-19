@@ -239,7 +239,7 @@ export function AdminDashboard({ authenticated, configured, initialProjects }: {
   if (!loggedIn) return (
     <main className="admin-login"><section>
       <Link className="admin-brand" href="/">{siteConfig.name}</Link>
-      <p className="admin-kicker">Private administration</p><h1>Welcome<br /><em>back.</em></h1>
+      <p className="admin-kicker">Private administration</p><h1>Welcome<br /><span>back.</span></h1>
       {!configured && <div className="admin-warning">Set ADMIN_USERNAME, ADMIN_PASSWORD, and ADMIN_SESSION_SECRET in <code>.env.local</code> before signing in.</div>}
       <form onSubmit={login}>
         <label>Username<input name="username" autoComplete="username" required /></label>
@@ -416,13 +416,13 @@ function ProjectEditor({ project, busy, onClose, onSave, onDelete }: { project: 
 
         <div className="admin-form-section"><h3>Media</h3><p>{isThumbnailOnlyProject ? "Upload the image for this thumbnail project." : "Upload the video to YouTube as Unlisted, enable embedding, then paste its share link below."}</p></div>
         {isThumbnailOnlyProject && <label className={`admin-field wide ${errors.thumbnail ? "has-error" : ""}`}><span>Thumbnail image *</span><input disabled={busy || uploading} type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void uploadThumbnail(file); }} />{uploading && <UploadProgress value={uploadProgress} label="Uploading image" />}{draft.thumbnail && !uploading && <small className="admin-uploaded">✓ Thumbnail uploaded</small>}{errors.thumbnail && <small className="admin-field-error">{errors.thumbnail}</small>}</label>}
-        {!isThumbnailOnlyProject && <label className={`admin-field wide ${errors.videoUrl ? "has-error" : ""}`}><span>Unlisted YouTube link *</span><input type="url" inputMode="url" value={source.src} aria-invalid={Boolean(errors.videoUrl)} placeholder="https://youtu.be/VIDEO_ID" onChange={(event) => {
+        {!isThumbnailOnlyProject && <label className={`admin-field wide ${errors.videoUrl ? "has-error" : ""}`}><span>YouTube video URL *</span><input type="url" inputMode="url" value={source.src} aria-invalid={Boolean(errors.videoUrl)} placeholder="https://youtu.be/VIDEO_ID" onChange={(event) => {
           const url = event.target.value;
           update("sources", [{ src: url, type: "video/youtube", label: "YouTube" }]);
           const thumbnail = getYouTubeThumbnailUrl(url);
           if (thumbnail) { update("thumbnail", thumbnail); update("poster", thumbnail); }
           clearError("videoUrl");
-        }} /><small className="admin-field-note">In YouTube Studio choose Visibility → Unlisted. Anyone with this link can watch the embedded video.</small>{source.src && !errors.videoUrl && <small className="admin-uploaded">✓ YouTube link added</small>}{errors.videoUrl && <small className="admin-field-error">{errors.videoUrl}</small>}</label>}
+        }} /><small className="admin-field-note">Paste the video URL only—not iframe embed code. In YouTube Studio choose Public or Unlisted and enable Allow embedding.</small>{source.src && !errors.videoUrl && <small className="admin-uploaded">✓ YouTube link added</small>}{errors.videoUrl && <small className="admin-field-error">{errors.videoUrl}</small>}</label>}
         <label className="admin-check"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => update("featured", event.target.checked)} /><span><strong>Featured project</strong><small>Show this project in Selected Work on the homepage.</small></span></label>
       </div></div>
       <footer>{onDelete ? <button type="button" className="admin-delete" disabled={busy || uploading} onClick={() => void onDelete(draft)}>Delete project</button> : <span />}<div><button type="button" className="admin-cancel" onClick={handleClose}>Cancel</button><button className="admin-button" disabled={busy || uploading}>{uploading ? `Uploading image ${uploadProgress}%…` : busy ? "Saving…" : "Save project"}</button></div></footer>

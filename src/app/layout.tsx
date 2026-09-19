@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Instrument_Serif } from "next/font/google";
+import { Geist } from "next/font/google";
 import "./globals.css";
 import { SiteChrome } from "@/components/site-chrome";
 import { siteConfig } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const instrumentSerif = Instrument_Serif({
-  variable: "--font-editorial",
-  weight: "400",
   subsets: ["latin"],
 });
 
@@ -28,7 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${instrumentSerif.variable}`}
+      className={geistSans.variable}
     >
       <body><a className="skip-link" href="#main">Skip to content</a><SiteChrome>{children}</SiteChrome></body>
     </html>

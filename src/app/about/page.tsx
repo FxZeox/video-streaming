@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { PageHero } from "@/components/sections";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = { title: "About", description: "About the editor and the philosophy behind every cut.", alternates: { canonical: "/about" } };
@@ -10,12 +9,6 @@ const tools = ["Adobe Premiere Pro", "After Effects", "DaVinci Resolve", "Photos
 export default function AboutPage() {
   return (
     <main id="main">
-      <PageHero
-        eyebrow="About · The editor"
-        title={<>Behind every cut<br />is an intention.</>}
-        copy="I help good footage become a clear, memorable story—through rhythm, restraint, and an obsession with the details that viewers may never consciously notice."
-      />
-
       <section className="section about-story">
         <div className="container about-story-grid">
           <div className="about-portrait">

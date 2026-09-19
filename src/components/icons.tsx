@@ -8,6 +8,8 @@ export function ArrowUpRight(props: IconProps) { return <svg {...base} {...props
 export function ArrowRight(props: IconProps) { return <svg {...base} {...props}><path d="M5 12h14M14 7l5 5-5 5" /></svg>; }
 export function Play(props: IconProps) { return <svg {...base} {...props} fill="currentColor" stroke="none"><path d="m9 7 8 5-8 5V7Z" /></svg>; }
 export function Pause(props: IconProps) { return <svg {...base} {...props} fill="currentColor" stroke="none"><path d="M7 6h3v12H7zM14 6h3v12h-3z" /></svg>; }
+export function SeekBackward(props: IconProps) { return <svg {...base} {...props}><path d="M4 7v5h5M5.6 16a8 8 0 1 0 .2-8.2L4 9.5" /><text x="12" y="15" textAnchor="middle" fill="currentColor" stroke="none" fontSize="7" fontWeight="700">10</text></svg>; }
+export function SeekForward(props: IconProps) { return <svg {...base} {...props}><path d="M20 7v5h-5M18.4 16a8 8 0 1 1-.2-8.2L20 9.5" /><text x="12" y="15" textAnchor="middle" fill="currentColor" stroke="none" fontSize="7" fontWeight="700">10</text></svg>; }
 export function Volume(props: IconProps) { return <svg {...base} {...props}><path d="M11 5 6 9H3v6h3l5 4V5ZM15 9a5 5 0 0 1 0 6M18 6a9 9 0 0 1 0 12" /></svg>; }
 export function VolumeOff(props: IconProps) { return <svg {...base} {...props}><path d="m11 5-5 4H3v6h3l5 4V5ZM16 10l5 5M21 10l-5 5" /></svg>; }
 export function Expand(props: IconProps) { return <svg {...base} {...props}><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" /></svg>; }
